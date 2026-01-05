@@ -20,14 +20,15 @@ import {
   Terminal
 } from 'lucide-react';
 
+// ملاحظة لـ همام: في مشروعك الحقيقي على Vercel، تأكد من وجود السطر التالي في App.jsx أو main.jsx:
+// import './index.css';
+
 // ==========================================
 // SECTION 1: FIREBASE CORE LOGIC (Safe Env Handling)
 // ==========================================
 
-// دالة لجلب متغيرات البيئة بشكل آمن لتجنب أخطاء التوافق في بعض المتصفحات أو بيئات البناء
 const getSafeEnv = (key) => {
   try {
-    // محاولة الوصول لـ import.meta.env بشكل ديناميكي لتجنب تحذيرات المترجم (Compiler)
     const env = (import.meta && import.meta.env) ? import.meta.env : {};
     return env[key];
   } catch (e) {
@@ -36,7 +37,6 @@ const getSafeEnv = (key) => {
 };
 
 const getFirebaseConfig = () => {
-  // القراءة من متغيرات البيئة (Vercel/Vite) باستخدام الدالة الآمنة
   const config = {
     apiKey: getSafeEnv('VITE_FIREBASE_API_KEY'),
     authDomain: getSafeEnv('VITE_FIREBASE_AUTH_DOMAIN'),
@@ -46,7 +46,6 @@ const getFirebaseConfig = () => {
     appId: getSafeEnv('VITE_FIREBASE_APP_ID')
   };
 
-  // Fallback للعمل داخل بيئة الـ Canvas التجريبية إذا كانت الإعدادات مفقودة
   if (!config.apiKey && typeof __firebase_config !== 'undefined') {
     try {
       return JSON.parse(__firebase_config);
@@ -61,11 +60,8 @@ const firebaseApp = !getApps().length ? initializeApp(getFirebaseConfig()) : get
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 const GEMINI_MODEL = "gemini-1.5-flash";
-const apiKey = ""; // يتم التعامل معه داخلياً
+const apiKey = ""; 
 
-// ==========================================
-// SECTION 2: DICTIONARY (Universal & Generic)
-// ==========================================
 const LANGUAGES = {
   ar_jo: {
     welcome: "يا هلا يا {name}",
@@ -87,9 +83,6 @@ const LANGUAGES = {
   }
 };
 
-// ==========================================
-// SECTION 3: MAIN APP COMPONENT
-// ==========================================
 const App = () => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState({ name: "", aura: 0, lang: "ar_jo", streak: 0, lastLogin: "" });
@@ -108,7 +101,6 @@ const App = () => {
   const t = LANGUAGES[profile.lang] || LANGUAGES.ar_jo;
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'glowup_omni_v2';
 
-  // --- Auth Observer ---
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       if (u) {
@@ -122,11 +114,8 @@ const App = () => {
     return () => unsub();
   }, [authChecking]);
 
-  // --- Real-time Data Sync (Strict user path) ---
   useEffect(() => {
     if (!user || user.isDemo) return;
-
-    // جلب البروفايل: artifacts/{appId}/users/{userId}/profile/core
     const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
     const unsubProfile = onSnapshot(profileRef, (snap) => {
       if (snap.exists()) {
@@ -134,49 +123,29 @@ const App = () => {
       } else if (!authChecking) {
         setAuthMode('setup'); 
       }
-    }, (err) => {
-      console.warn("Real-time profile sync pending auth or permissions.");
     });
-
-    // جلب المهام: artifacts/{appId}/users/{userId}/tasks
     const tasksCol = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
     const unsubTasks = onSnapshot(tasksCol, (snap) => {
       setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => {
-      console.warn("Real-time tasks sync pending auth or permissions.");
     });
-
     return () => { unsubProfile(); unsubTasks(); };
   }, [user, authChecking, appId]);
 
-  // --- Developer Bypass ---
   const handleDeveloperLogin = () => {
-    const mockUser = {
-      uid: "dev_user_mock",
-      email: "dev@humam.absolute",
-      isDemo: true
-    };
+    const mockUser = { uid: "dev_user_mock", email: "dev@humam.absolute", isDemo: true };
     setUser(mockUser);
-    setProfile({
-      name: "Humam (Dev Mode)",
-      aura: 500,
-      lang: "ar_jo",
-      streak: 5,
-      lastLogin: new Date().toISOString()
-    });
+    setProfile({ name: "Humam (Dev Mode)", aura: 500, lang: "ar_jo", streak: 5, lastLogin: new Date().toISOString() });
     setTasks([
       { id: 'dev1', text: 'اختبار واجهة المستخدم العامة', status: 'todo', emoji: '⚙️' },
       { id: 'dev2', text: 'تجربة إضافة المهام التجريبية', status: 'doing', emoji: '🔴' }
     ]);
   };
 
-  // --- AI Advice (Gemini 1.5 Flash) ---
   const getAiAdvice = async () => {
     setIsAiLoading(true);
     try {
       const taskSummary = tasks.map(tk => tk.text).join(', ');
       const system = `You are a coach for ${profile.name}. Language: ${profile.lang}. If Slang, use Jordanian Arabic. Be direct and aggressive. Tasks: ${taskSummary || 'None'}`;
-      
       const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -194,7 +163,6 @@ const App = () => {
     }
   };
 
-  // --- Task Operations ---
   const handleAddTask = async () => {
     if (!newTaskText.trim() || !user) return;
     if (user.isDemo) {
@@ -227,12 +195,8 @@ const App = () => {
     setAuthMode('login');
   };
 
-  // ==========================================
-  // 4. UI RENDERERS
-  // ==========================================
   if (authChecking) return <div className="h-screen bg-black flex items-center justify-center text-red-600"><Loader2 className="animate-spin" size={48} /></div>;
 
-  // شاشة الدخول (Login / Identity Setup)
   if (!user || (user && !profile.name)) {
     const isSetup = user && !profile.name;
     return (
@@ -240,20 +204,18 @@ const App = () => {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.1),transparent_75%)]"></div>
         <div className="w-full max-w-md bg-zinc-900 border border-red-900/30 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 to-transparent"></div>
-          
           <div className="text-center mb-10">
             <div className="w-20 h-20 bg-red-600/10 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-red-500/10">
               <Rocket size={40} className="text-red-600 animate-bounce" />
             </div>
             <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">GlowUp <span className="text-red-600">Omni</span></h1>
           </div>
-
           {isSetup ? (
             <div className="space-y-6 animate-in zoom-in-95">
               <p className="text-zinc-400 font-bold text-center">أهلاً بك! ما هو الاسم الذي تود استخدامه في بروفايلك؟</p>
               <input 
                 autoFocus type="text" placeholder={t.identity_placeholder} 
-                className="w-full bg-black border border-red-900/30 rounded-2xl p-6 text-center text-3xl font-black text-white outline-none focus:ring-4 ring-red-600/20" 
+                className="w-full bg-black border border-red-900/30 rounded-2xl p-6 text-center text-3xl font-black text-white outline-none focus:ring-4 ring-red-600/20 shadow-inner" 
                 onChange={(e)=>setTempName(e.target.value)} 
               />
               <button onClick={handleIdentitySave} className="w-full bg-red-600 py-6 rounded-2xl font-black text-white shadow-xl active:scale-95 transition-all uppercase tracking-widest text-lg">تثبيت الهوية ⚡</button>
@@ -266,8 +228,7 @@ const App = () => {
                 <button type="submit" className="w-full bg-red-600 py-6 rounded-2xl font-black text-white text-lg uppercase shadow-xl hover:bg-red-500 transition-all">دخول</button>
               </form>
               <div className="flex flex-col gap-4">
-                <button onClick={async () => { try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { setAuthError("فشل دخول جوجل (جرب الـ Dev Access)."); } }} className="w-full py-4 bg-zinc-800 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-3">Google Sync <Zap size={14}/></button>
-                <div className="relative py-2"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-800"></div></div><div className="relative flex justify-center text-[8px] uppercase font-black text-zinc-700 px-2">Testing Purposes</div></div>
+                <button onClick={async () => { try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { setAuthError("فشل دخول جوجل."); } }} className="w-full py-4 bg-zinc-800 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-3">Google Sync <Zap size={14}/></button>
                 <button onClick={handleDeveloperLogin} className="w-full py-4 border border-dashed border-red-600/40 text-red-600 rounded-2xl font-black text-xs uppercase hover:bg-red-600/10 transition-all flex items-center justify-center gap-3"><Terminal size={14}/> {t.auth.dev}</button>
               </div>
             </div>
@@ -281,7 +242,6 @@ const App = () => {
   return (
     <div className="min-h-screen bg-[#020000] text-white p-4 md:p-8 font-sans" dir={profile.lang === 'ar_jo' ? 'rtl' : 'ltr'}>
       <div className="max-w-6xl mx-auto space-y-10">
-        
         <header className="flex flex-col md:flex-row justify-between items-start gap-8 animate-in slide-in-from-top-10 duration-700">
           <div className="space-y-4 flex-1">
             <h1 className="text-6xl md:text-8xl font-black italic tracking-tighter leading-none">
@@ -298,16 +258,13 @@ const App = () => {
               </button>
             </div>
           </div>
-
           <div className="flex gap-4">
              <div className="bg-zinc-900/40 p-8 rounded-[2.5rem] border border-red-900/20 text-center shadow-2xl backdrop-blur-md min-w-[140px]">
                 <Flame size={32} className={profile.streak > 0 ? "text-orange-500 animate-pulse mx-auto" : "text-zinc-700 mx-auto"} />
                 <p className="text-4xl font-black mt-2">{profile.streak || 0}</p>
                 <p className="text-[10px] font-bold uppercase text-zinc-600 tracking-widest leading-none">The Streak</p>
              </div>
-             <button onClick={()=>setShowSettings(true)} className="p-10 bg-zinc-900/40 border border-red-900/20 rounded-[3rem] text-zinc-500 hover:text-red-500 transition-all shadow-xl active:scale-90">
-                <Settings size={40} />
-             </button>
+             <button onClick={()=>setShowSettings(true)} className="p-10 bg-zinc-900/40 border border-red-900/20 rounded-[3rem] text-zinc-500 hover:text-red-500 transition-all shadow-xl active:scale-90"><Settings size={40} /></button>
           </div>
         </header>
 
@@ -341,10 +298,7 @@ const App = () => {
                   onClick={async () => {
                     const seq = ['todo', 'doing', 'done', 'missed'];
                     const next = seq[(seq.indexOf(tk.status) + 1) % 4];
-                    if (user.isDemo) {
-                      setTasks(tasks.map(t => t.id === tk.id ? {...t, status: next} : t));
-                      return;
-                    }
+                    if (user.isDemo) { setTasks(tasks.map(t => t.id === tk.id ? {...t, status: next} : t)); return; }
                     await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', tk.id), { status: next, completed: next === 'done' });
                     if (next === 'done' && tk.status !== 'done') {
                       const pRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
@@ -360,9 +314,9 @@ const App = () => {
         </div>
 
         {showSettings && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 text-right" dir="rtl">
             <div className="absolute inset-0 bg-black/95 backdrop-blur-3xl" onClick={()=>setShowSettings(false)}></div>
-            <div className="relative w-full max-w-xl bg-zinc-900 border border-red-900/30 p-12 rounded-[4rem] shadow-2xl animate-in zoom-in-95 text-right" dir="rtl">
+            <div className="relative w-full max-w-xl bg-zinc-900 border border-red-900/30 p-12 rounded-[4rem] shadow-2xl animate-in zoom-in-95">
                <button onClick={()=>setShowSettings(false)} className="absolute top-10 right-10 text-zinc-600 hover:text-white"><X size={32}/></button>
                <h2 className="text-4xl font-black italic mb-10 flex items-center gap-4 text-red-600"><Settings2/> الإعدادات</h2>
                <div className="space-y-12">
@@ -374,9 +328,7 @@ const App = () => {
                             if (user.isDemo) { setProfile({...profile, lang: key}); return; }
                             const pRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
                             await updateDoc(pRef, { lang: key });
-                         }} className={`p-5 rounded-2xl font-black text-xs transition-all ${profile.lang === key ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
-                           {key.toUpperCase()}
-                         </button>
+                         }} className={`p-5 rounded-2xl font-black text-xs transition-all ${profile.lang === key ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-500'}`}>{key.toUpperCase()}</button>
                        ))}
                     </div>
                   </div>
