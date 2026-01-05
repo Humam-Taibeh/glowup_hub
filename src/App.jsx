@@ -142,22 +142,22 @@ const TaskCard = forwardRef(({ tk, t, onUpdate, onDelete, s, onEdit }, ref) => {
       <div 
         onClick={handleStatusClick}
         className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center border-[0.5px] transition-all z-10 ${
-          tk.status === 'done' ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-400' : 
-          tk.status === 'doing' ? 'bg-orange-500/20 border-orange-400/30 text-orange-400 animate-pulse' : 
-          tk.status === 'missed' ? 'bg-red-600/20 border-red-500/30 text-red-400' : 
+          tk?.status === 'done' ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-400' : 
+          tk?.status === 'doing' ? 'bg-orange-500/20 border-orange-400/30 text-orange-400 animate-pulse' : 
+          tk?.status === 'missed' ? 'bg-red-600/20 border-red-500/30 text-red-400' : 
           'bg-zinc-950/50 border-white/5 text-zinc-600 hover:border-white/20'
         }`}
       >
-        {tk.status === 'done' ? <CheckCircle size={18}/> : tk.status === 'doing' ? <Construction size={18}/> : tk.status === 'missed' ? <X size={18}/> : <Circle size={18}/>}
+        {tk?.status === 'done' ? <CheckCircle size={18}/> : tk?.status === 'doing' ? <Construction size={18}/> : tk?.status === 'missed' ? <X size={18}/> : <Circle size={18}/>}
       </div>
 
       <div className="flex-1 overflow-hidden text-right" dir="rtl">
         <div className="flex items-center gap-2">
-           <span className="text-xl">{String(tk.emoji || '✨')}</span>
-           <h3 className={`text-sm md:text-base font-bold truncate ${tk.status === 'done' ? 'line-through text-zinc-600' : 'text-zinc-100'}`}>
-             {String(tk.text)}
+           <span className="text-xl">{String(tk?.emoji || '✨')}</span>
+           <h3 className={`text-sm md:text-base font-bold truncate ${tk?.status === 'done' ? 'line-through text-zinc-600' : 'text-zinc-100'}`}>
+             {String(tk?.text || "")}
            </h3>
-           {tk.deadline && tk.status !== 'done' && (
+           {tk?.deadline && tk?.status !== 'done' && (
              <div className={`text-[8px] px-1.5 py-0.5 rounded-full font-black border-[0.5px] whitespace-nowrap ${isMissed ? 'bg-red-600/10 border-red-500/30 text-red-500 shadow-[0_0_10px_red]' : 'bg-blue-600/10 border-blue-500/30 text-blue-500'}`}>
                {new Date(tk.deadline).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
              </div>
@@ -165,11 +165,11 @@ const TaskCard = forwardRef(({ tk, t, onUpdate, onDelete, s, onEdit }, ref) => {
         </div>
         <div className="flex items-center gap-2 mt-1">
            <p className="text-[9px] font-light text-zinc-500 uppercase tracking-widest flex items-center gap-1">
-             {tk.slot === 'morning' ? <Sun size={10}/> : tk.slot === 'night' ? <Moon size={10}/> : <CloudSun size={10}/>}
-             {String(t.slots[tk.slot || 'day'])}
+             {tk?.slot === 'morning' ? <Sun size={10}/> : tk?.slot === 'night' ? <Moon size={10}/> : <CloudSun size={10}/>}
+             {String(t?.slots?.[tk?.slot || 'day'] || "Day")}
            </p>
            <span className="h-0.5 w-0.5 bg-zinc-800 rounded-full" />
-           <p className="text-[9px] font-light text-zinc-700 uppercase tracking-widest">{String(t.target)}</p>
+           <p className="text-[9px] font-light text-zinc-700 uppercase tracking-widest">{String(t?.target || "Target")}</p>
         </div>
       </div>
 
@@ -228,7 +228,7 @@ const App = () => {
   };
   const s = scaleConfig[profile?.uiScale || 'default'];
 
-  // --- AI Quote Logic ---
+  // AI Quote Engine
   useEffect(() => {
     const langKey = isArabic ? 'ar' : 'en';
     const quotes = AI_QUOTES[langKey];
@@ -239,7 +239,7 @@ const App = () => {
     return () => clearInterval(interval);
   }, [currentLang, isArabic]);
 
-  // --- Authentication Handler ---
+  // Sync Logic & Mouse Move
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -249,7 +249,7 @@ const App = () => {
           await signInAnonymously(auth);
         }
       } catch (e) {
-        console.error("Auth Error:", e);
+        console.error("Auth init error:", e);
       } finally {
         setAuthChecking(false);
       }
@@ -268,19 +268,14 @@ const App = () => {
     return () => { unsub(); window.removeEventListener('mousemove', handleMouseMove); };
   }, [mouseX, mouseY]);
 
-  // --- Data Synchronizer (Firestore Guards) ---
   useEffect(() => {
-    if (!user || user.isDemo) {
-      if (!authChecking) setIsLoading(false);
-      return;
-    }
+    if (!user || user.isDemo || authChecking) return;
 
     const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
     const unsubP = onSnapshot(profileRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         setProfile(data);
-        // Midnight Routine Audit
         const today = new Date().toISOString().split('T')[0];
         if (data.lastLogin !== today) {
             const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
@@ -295,19 +290,18 @@ const App = () => {
       }
       setIsLoading(false);
     }, (err) => {
-      console.error("Firestore Permission/Error:", err);
+      console.error("Profile sync error:", err);
       setIsLoading(false);
     });
 
     const tasksCol = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
     const unsubT = onSnapshot(tasksCol, (snap) => {
       setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => { console.error("Tasks fetch error:", err); });
+    }, (err) => { console.error("Tasks sync error:", err); });
 
     return () => { unsubP(); unsubT(); };
   }, [user, authChecking]);
 
-  // --- Database Mutators ---
   const addWater = async (ml) => {
     const amount = parseInt(ml);
     if (isNaN(amount) || !user) return;
@@ -350,14 +344,11 @@ const App = () => {
     return matchTime && matchStatus;
   });
 
-  // --- Premium Loading UI ---
-  if (authChecking || isLoading) {
+  // --- FINAL PROTECTION: LOADING SCREEN ---
+  if (authChecking || isLoading || !t) {
     return (
       <div className="h-screen bg-[#050505] flex flex-col items-center justify-center gap-6">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-        >
+        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
           <Loader2 className="text-red-600" size={48} />
         </motion.div>
         <p className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-800 animate-pulse">Initializing Absolute System</p>
@@ -365,7 +356,7 @@ const App = () => {
     );
   }
 
-  // --- Onboarding / Auth View ---
+  // --- ONBOARDING / AUTH VIEW ---
   if (!user || (user && !profile?.name)) {
     return (
       <div className="min-h-screen bg-[#050000] flex items-center justify-center p-6 text-right font-sans" dir="rtl">
@@ -404,7 +395,7 @@ const App = () => {
       <motion.div style={{ x: glowX, y: glowY }} className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100vw] h-[100vw] bg-red-600/[0.02] blur-[180px] rounded-full pointer-events-none -z-10" />
 
       <div className="max-w-7xl mx-auto space-y-12 pb-40">
-        {/* HEADER SECTION (Language Aware Alignment) */}
+        {/* HEADER SECTION (Conditional Alignment Fix) */}
         <header className={`flex flex-col md:flex-row items-center justify-between gap-8 pb-10 border-b border-white/5 ${isArabic ? 'text-right' : 'text-left md:items-start'}`}>
           <div className="flex-1 w-full">
             <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className={`${s.welcome} font-black italic tracking-tighter leading-none`}>
@@ -428,7 +419,7 @@ const App = () => {
           </motion.div>
         </header>
 
-        {/* CONTROLS HUB */}
+        {/* INPUT & FILTER HUB */}
         <div className="flex flex-col md:flex-row gap-6 max-w-5xl mx-auto">
            <div className="flex-1 bg-white/[0.02] p-4 rounded-[3rem] border-[0.5px] border-white/10 shadow-2xl backdrop-blur-3xl focus-within:ring-1 ring-red-600/10 transition-all glass-noise">
               <div className="flex items-center gap-4">
@@ -457,7 +448,6 @@ const App = () => {
            </div>
         </div>
 
-        {/* TASK GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-40">
            <AnimatePresence mode='popLayout'>
            {filteredTasks.length === 0 ? (
@@ -471,7 +461,7 @@ const App = () => {
            </AnimatePresence>
         </div>
 
-        {/* FLOATING WATER HUB */}
+        {/* WATER HUB MODAL */}
         <div className="fixed bottom-10 right-10 z-50 flex flex-col items-end gap-6">
            <AnimatePresence>
            {showWater && (
@@ -505,32 +495,7 @@ const App = () => {
            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setShowWater(!showWater)} className="w-20 h-20 bg-blue-600 text-white rounded-full shadow-[0_15px_40px_rgba(37,99,235,0.5)] flex items-center justify-center border-[0.5px] border-white/30 group"><Droplets size={32} className="group-hover:animate-bounce" /></motion.button>
         </div>
 
-        {/* EDIT TASK OVERLAY */}
-        <AnimatePresence>
-        {editingTask && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6" dir="rtl">
-             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black backdrop-blur-2xl z-0" onClick={()=>setEditingTask(null)} />
-             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-lg bg-zinc-900/90 border-[0.5px] border-white/10 p-10 rounded-[4rem] shadow-2xl glass-noise z-10">
-                <button onClick={()=>setEditingTask(null)} className="absolute top-10 right-10 text-zinc-600 hover:text-white transition-colors"><X size={28}/></button>
-                <h2 className="text-3xl font-black mb-10 italic text-red-600 uppercase text-right">Secure Update</h2>
-                <div className="space-y-10 text-right">
-                   <input value={String(editingTask.text)} onChange={(e)=>setEditingTask({...editingTask, text: e.target.value})} className="w-full bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-5 text-xl font-black text-white outline-none" />
-                   <div className="grid grid-cols-2 gap-6">
-                      <div className="flex gap-2 p-1.5 bg-black/40 rounded-2xl border-[0.5px] border-white/5">
-                        {['morning', 'day', 'night'].map(sl => (
-                          <button key={sl} onClick={()=>setEditingTask({...editingTask, slot: sl})} className={`flex-1 p-3 rounded-xl transition-all ${editingTask.slot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700'}`}>{sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}</button>
-                        ))}
-                      </div>
-                      <select value={editingTask.category} onChange={(e)=>setEditingTask({...editingTask, category: e.target.value})} className="w-full bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-4 text-[10px] font-black text-white outline-none"><option value="personal">Personal</option><option value="uni">University</option><option value="gym">Gym</option></select>
-                   </div>
-                   <button onClick={async ()=>{ if(user.isDemo) { setTasks(tasks.map(t=>t.id===editingTask.id?editingTask:t)); setEditingTask(null); } else { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', editingTask.id), editingTask); setEditingTask(null); } }} className="w-full py-6 bg-red-600 rounded-[2.2rem] font-black text-white shadow-xl active:scale-95 transition-all">Apply Changes ⚡</button>
-                </div>
-             </motion.div>
-          </div>
-        )}
-        </AnimatePresence>
-
-        {/* SETTINGS OVERLAY */}
+        {/* SETTINGS OVERLAY (Full-Screen Logic) */}
         <AnimatePresence>
         {showSettings && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 text-right" dir="rtl">
@@ -540,7 +505,7 @@ const App = () => {
                <div className="space-y-16 text-left" dir="ltr">
                   <h2 className="text-4xl font-black italic mb-12 text-red-600 tracking-tighter uppercase">System Config</h2>
                   <div className="space-y-12">
-                    {/* IDENTITY SETTINGS */}
+                    {/* IDENTITY SETTINGS (Real-time Sync) */}
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4">
                         <IDIcon size={20} className="text-red-600" />
@@ -586,7 +551,7 @@ const App = () => {
         )}
         </AnimatePresence>
 
-        {/* ULTRA MINIMALIST FOOTER (Architecture Signature) */}
+        {/* ULTRA MINIMALIST FOOTER (Signature Refinement) */}
         <footer className="mt-64 pt-24 border-t border-white/5 flex flex-col items-center justify-center px-6 pb-24 opacity-60 gap-16 text-center">
           <div className="w-full flex flex-col md:flex-row justify-between items-center gap-8 text-zinc-800 max-w-5xl">
              <div className="flex items-center gap-2">
