@@ -2,40 +2,15 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GlowUp Hub | Humam Taibeh</title>
-    
-    <!-- Fix 1: Add Google Fonts as a LINK tag instead of @import to avoid PostCSS errors -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700;900&display=swap" rel="stylesheet">
-    
-    <!-- Fix 2: Add Tailwind CDN with type="module" as required by Vite -->
-    <script type="module" src="https://cdn.tailwindcss.com"></script>
-    
-    <style>
-      body { 
-        font-family: 'Noto Sans Arabic', sans-serif; 
-        background-color: #020617; 
-        color: white; 
-        margin: 0;
-        overflow-x: hidden;
-      }
-      .glass { 
-        background: rgba(15, 23, 42, 0.75); 
-        backdrop-filter: blur(24px); 
-        border: 1px solid rgba(255, 255, 255, 0.08); 
-      }
-      @keyframes glow { 
-        0%, 100% { text-shadow: 0 0 15px rgba(59, 130, 246, 0.5); } 
-        50% { text-shadow: 0 0 30px rgba(59, 130, 246, 0.8); } 
-      }
-      .logo-glow { animation: glow 3s ease-in-out infinite; }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@200;400;700;900&display=swap" rel="stylesheet">
   </head>
-  <body>
+  <body class="bg-[#020000] text-white">
     <div id="root"></div>
-    <!-- Vite entry point -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
