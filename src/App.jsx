@@ -40,13 +40,15 @@ const AI_QUOTES = {
     "كُن النسخة الأفضل منك اليوم.",
     "الاستمرارية هي مفتاح الهيبة الحقيقية.",
     "أنت المعماري، ابنِ مستقبلك بدقة.",
-    "الـ Glow Up يبدأ من الداخل."
+    "الـ Glow Up يبدأ من الداخل.",
+    "انضبط لتسود."
   ],
   en: [
     "Become the ultimate version of yourself.",
     "Consistency is the ultimate flex.",
     "Your future is being architected now.",
-    "Precision in action, excellence in result."
+    "Precision in action, excellence in result.",
+    "Discipline equals freedom."
   ]
 };
 
@@ -207,6 +209,7 @@ const App = () => {
   const [newTaskText, setNewTaskText] = useState("");
   const [newTaskSlot, setNewTaskSlot] = useState("day");
   const [aiAdvice, setAiAdvice] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
   
   const [showSettings, setShowSettings] = useState(false);
   const [showWater, setShowWater] = useState(false);
@@ -242,7 +245,7 @@ const App = () => {
     return () => clearInterval(interval);
   }, [profile.lang, isArabic]);
 
-  // Sync Logic & Mouse Move
+  // Sync Logic
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -296,7 +299,8 @@ const App = () => {
     const newLvl = (profile.waterLevel || 0) + amount;
     const updates = { waterLevel: newLvl, lastWaterAmount: amount };
     if (user.isDemo) { setProfile({...profile, ...updates}); setCustomWater(""); return; }
-    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), updates, { merge: true });
+    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
+    await setDoc(profileRef, updates, { merge: true });
     setCustomWater("");
   };
 
@@ -306,13 +310,17 @@ const App = () => {
     if (user.isDemo) { setTasks(tasks.map(t => t.id === tk.id ? {...t, status: next} : t)); return; }
     await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', tk.id), { status: next, completed: next === 'done', lastStatusChange: new Date().toISOString() });
     if (next === 'done') {
-        await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { aura: (profile.aura || 0) + 10, hasDoneTaskToday: true }, { merge: true });
+        const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
+        await setDoc(profileRef, { aura: (profile.aura || 0) + 10, hasDoneTaskToday: true }, { merge: true });
     }
   };
 
   const handleAddTask = async () => {
     if (!newTaskText.trim() || !user) return;
-    const tkData = { text: String(newTaskText), status: 'todo', slot: newTaskSlot, dateAdded: new Date().toISOString(), completed: false, emoji: '✨', category: 'personal' };
+    const tkData = { 
+      text: String(newTaskText), status: 'todo', slot: newTaskSlot, 
+      dateAdded: new Date().toISOString(), completed: false, emoji: '✨', category: 'personal' 
+    };
     if (user.isDemo) { setTasks([{ id: Date.now().toString(), ...tkData }, ...tasks]); setNewTaskText(""); return; }
     await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'), tkData);
     setNewTaskText("");
@@ -355,8 +363,8 @@ const App = () => {
           ) : (
             <div className="space-y-6">
               <form onSubmit={async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, email, password); } catch(err) { } }} className="space-y-4 text-right">
-                <input type="email" placeholder="Email" className="w-full bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-5 text-white font-bold outline-none" onChange={(e)=>setEmail(e.target.value)} required />
-                <input type="password" placeholder="Password" className="w-full bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-5 text-white font-bold outline-none" onChange={(e)=>setPassword(e.target.value)} required />
+                <input type="email" placeholder="Email" className="w-full bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-5 text-white font-bold outline-none focus:border-red-600/40" onChange={(e)=>setEmail(e.target.value)} required />
+                <input type="password" placeholder="Password" className="w-full bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-5 text-white font-bold outline-none focus:border-red-600/40" onChange={(e)=>setPassword(e.target.value)} required />
                 <button type="submit" className="w-full bg-red-600 py-6 rounded-2xl font-black text-white text-lg uppercase shadow-xl">دخول</button>
               </form>
               <button onClick={() => setUser({ uid: "dev", isDemo: true, name: "Developer" })} className="w-full py-4 border border-dashed border-red-600/20 text-red-600/60 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-3 active:scale-95 transition-all"><Terminal size={14}/> Developer Access</button>
@@ -380,7 +388,7 @@ const App = () => {
             </motion.h1>
             <div className={`flex items-center gap-4 mt-4 h-8 overflow-hidden ${isArabic ? 'justify-start' : 'justify-start'}`}>
               <AnimatePresence mode='wait'>
-                <motion.p key={aiAdvice} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }} transition={{ duration: 0.4 }} className="font-light text-zinc-500 italic max-w-2xl truncate text-base">
+                <motion.p key={aiAdvice} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.3 }} className="font-light text-zinc-500 italic max-w-2xl truncate text-base">
                   "{String(aiAdvice)}"
                 </motion.p>
               </AnimatePresence>
@@ -421,10 +429,10 @@ const App = () => {
            </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-40">
            <AnimatePresence mode='popLayout'>
            {filteredTasks.length === 0 ? (
-             <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 0.1 }} className="col-span-full py-40 text-center border-2 border-dashed border-white/5 rounded-[4rem] flex flex-col items-center gap-6">
+             <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 0.05 }} className="col-span-full py-40 text-center border-2 border-dashed border-white/5 rounded-[4rem] flex flex-col items-center gap-6">
                 <ZapOff size={80} className="text-zinc-800" />
                 <p className="text-2xl font-black italic tracking-widest uppercase text-zinc-800">Clear</p>
              </motion.div>
@@ -437,13 +445,13 @@ const App = () => {
         <div className="fixed bottom-10 right-10 z-50 flex flex-col items-end gap-6">
            <AnimatePresence>
            {showWater && (
-             <motion.div initial={{ opacity: 0, scale: 0.8, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: 20 }} className="bg-[#0d0d0f]/95 border-[0.5px] border-white/20 p-8 rounded-[4rem] shadow-[0_30px_100px_rgba(0,0,0,1)] w-80 backdrop-blur-3xl overflow-hidden glass-noise">
+             <motion.div initial={{ opacity: 0, scale: 0.8, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: 20 }} className="bg-zinc-950/98 border-[0.5px] border-white/20 p-8 rounded-[4rem] shadow-[0_30px_100px_rgba(0,0,0,1)] w-80 backdrop-blur-3xl overflow-hidden glass-noise">
                 <div className="flex justify-between items-center mb-8 relative z-10 px-2 text-right" dir="rtl">
-                   <h4 className="font-black text-xl italic uppercase tracking-tighter text-blue-500">{t.water.label}</h4>
+                   <h4 className="font-black text-xl italic uppercase tracking-tighter text-blue-500">Hydration</h4>
                    <button onClick={()=>setShowWater(false)}><X size={20} className="text-zinc-600" /></button>
                 </div>
                 <div className="h-56 w-full bg-black/60 rounded-[2.5rem] relative overflow-hidden mb-8 border-[0.5px] border-white/10 shadow-inner">
-                   <motion.div animate={{ y: [0, -3, 0], x: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 15, ease: "easeInOut" }} className="absolute bottom-0 left-[-10%] w-[120%] bg-blue-600/20" style={{ height: `${Math.min(100, ((profile.waterLevel || 0) / 4000) * 100)}%` }} />
+                   <motion.div animate={{ y: [0, -3, 0], x: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 12, ease: "easeInOut" }} className="absolute bottom-0 left-[-10%] w-[120%] bg-blue-600/25" style={{ height: `${Math.min(100, ((profile.waterLevel || 0) / 4000) * 100)}%` }} />
                    <div className="absolute inset-0 flex items-center justify-center font-black text-6xl tracking-tighter opacity-70 z-10">{Math.round(((profile.waterLevel || 0) / 4000) * 100)}%</div>
                 </div>
                 <div className="flex items-center gap-2 mb-6 text-right" dir="rtl">
@@ -452,7 +460,7 @@ const App = () => {
                    ))}
                 </div>
                 <div className="flex gap-2">
-                   <input type="number" value={customWater} onChange={(e)=>setCustomWater(e.target.value)} placeholder={String(t.water.custom)} className="flex-1 bg-black/60 border border-white/10 rounded-2xl p-4 text-xs font-black text-white outline-none focus:ring-1 ring-blue-600" />
+                   <input type="number" value={customWater} onChange={(e)=>setCustomWater(e.target.value)} placeholder={String(t.water.custom)} className="flex-1 bg-black/60 border border-white/10 rounded-2xl p-4 text-xs font-black text-white outline-none focus:ring-[0.5px] ring-blue-600" />
                    <button onClick={()=>addWater(customWater)} className="bg-blue-600 p-4 rounded-2xl shadow-lg active:scale-90 transition-transform"><Plus size={20}/></button>
                    <button onClick={async () => {
                      const lastAmt = profile.lastWaterAmount || 0;
@@ -470,8 +478,8 @@ const App = () => {
         <AnimatePresence>
         {editingTask && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-6" dir="rtl">
-             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={()=>setEditingTask(null)} />
-             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-lg bg-zinc-900/90 border-[0.5px] border-white/10 p-10 rounded-[4rem] shadow-2xl glass-noise">
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black backdrop-blur-2xl z-0" onClick={()=>setEditingTask(null)} />
+             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-lg bg-zinc-900/90 border-[0.5px] border-white/10 p-10 rounded-[4rem] shadow-2xl glass-noise z-10">
                 <button onClick={()=>setEditingTask(null)} className="absolute top-10 right-10 text-zinc-600 hover:text-white transition-colors"><X size={28}/></button>
                 <h2 className="text-3xl font-black mb-10 italic text-red-600 uppercase text-right">Secure Update</h2>
                 <div className="space-y-10 text-right">
@@ -511,7 +519,6 @@ const App = () => {
                         <input type="text" value={profile.name} onChange={(e) => handleUpdateName(e.target.value)} placeholder="Your Name..." className="bg-transparent flex-1 text-zinc-100 font-bold outline-none placeholder:text-zinc-800" />
                       </div>
                     </div>
-
                     <div className="space-y-8">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4">
                         <LanguagesIcon size={20} className="text-red-600" />
@@ -551,6 +558,7 @@ const App = () => {
         )}
         </AnimatePresence>
 
+        {/* ULTRA MINIMALIST SIGNATURE FOOTER */}
         <footer className="mt-64 pt-24 border-t border-white/5 flex flex-col items-center justify-center px-6 pb-24 opacity-60 gap-16 text-center">
           <div className="w-full flex flex-col md:flex-row justify-between items-center gap-8 text-zinc-800 max-w-5xl">
              <div className="flex items-center gap-2">
@@ -564,10 +572,14 @@ const App = () => {
           </div>
           <div className="flex flex-col items-center group cursor-default">
              <div className="relative">
-                <motion.p transition={{ duration: 0.15 }} whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} className={`text-4xl md:text-6xl font-black tracking-[0.5em] uppercase leading-none text-zinc-900 transition-colors cursor-pointer select-none`}>
+                <motion.p 
+                  transition={{ duration: 0.1 }} 
+                  whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} 
+                  className={`text-2xl md:text-3xl font-black tracking-[0.5em] uppercase leading-none text-zinc-900 transition-colors cursor-pointer select-none whitespace-nowrap`}
+                >
                   HUMAM TAIBEH
                 </motion.p>
-                <motion.div initial={{ scaleX: 0 }} whileHover={{ scaleX: 1 }} transition={{ duration: 0.3 }} className="absolute -bottom-4 left-0 w-full h-[1px] bg-red-600 origin-center" />
+                <motion.div initial={{ scaleX: 0 }} whileHover={{ scaleX: 1 }} transition={{ duration: 0.2 }} className="absolute -bottom-4 left-0 w-full h-[1px] bg-red-600 origin-center" />
              </div>
              <p className="text-[7px] font-black text-zinc-900 uppercase tracking-[1.2em] mt-10 opacity-40 uppercase">Sovereign Productivity Engine • © 2026</p>
           </div>
