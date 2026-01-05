@@ -105,7 +105,7 @@ const LANGUAGES = {
 };
 
 // ==========================================
-// SECTION 2: UI COMPONENTS (Pixel Perfect)
+// SECTION 2: UI COMPONENTS
 // ==========================================
 
 const TaskCard = forwardRef(({ tk, t, onUpdate, onDelete, s, onEdit }, ref) => {
@@ -191,7 +191,6 @@ TaskCard.displayName = "TaskCard";
 // SECTION 3: MAIN APP LOGIC
 // ==========================================
 const App = () => {
-  // --- States ---
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState({ 
     name: "", aura: 0, lang: "ar_jo", streak: 0, lastLogin: "", 
@@ -205,7 +204,6 @@ const App = () => {
   const [newTaskText, setNewTaskText] = useState("");
   const [newTaskSlot, setNewTaskSlot] = useState("day");
   const [aiAdvice, setAiAdvice] = useState("");
-  const [isAiLoading, setIsAiLoading] = useState(false);
   
   const [showSettings, setShowSettings] = useState(false);
   const [showWater, setShowWater] = useState(false);
@@ -250,7 +248,7 @@ const App = () => {
         } else {
           await signInAnonymously(auth);
         }
-      } catch (e) { console.error("Auth init error:", e); }
+      } catch (e) { }
       finally { setAuthChecking(false); }
     };
     initAuth();
@@ -280,8 +278,6 @@ const App = () => {
             else if (data.lastLogin < yesterdayStr) newStreak = 0;
             setDoc(pRef, { lastLogin: today, waterLevel: 0, streak: newStreak, hasDoneTaskToday: false }, { merge: true });
         }
-      } else {
-        // Setup initial profile if not exists
       }
     }, (err) => { });
     const tCol = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
@@ -291,7 +287,6 @@ const App = () => {
     return () => { unsubP(); unsubT(); };
   }, [user, authChecking, appId]);
 
-  // --- Handlers ---
   const addWater = async (ml) => {
     const amount = parseInt(ml);
     if (isNaN(amount) || !user) return;
@@ -335,7 +330,6 @@ const App = () => {
 
   if (authChecking) return <div className="h-screen bg-[#050505] flex items-center justify-center text-red-600"><Loader2 className="animate-spin" size={48} /></div>;
 
-  // --- Auth View ---
   if (!user || (user && !profile.name)) {
     return (
       <div className="min-h-screen bg-[#050000] flex items-center justify-center p-6 text-right font-sans" dir="rtl">
@@ -361,7 +355,7 @@ const App = () => {
                 <input type="password" placeholder="Password" className="w-full bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-5 text-white font-bold outline-none" onChange={(e)=>setPassword(e.target.value)} required />
                 <button type="submit" className="w-full bg-red-600 py-6 rounded-2xl font-black text-white text-lg uppercase shadow-xl">دخول</button>
               </form>
-              <button onClick={() => setUser({ uid: "dev", isDemo: true, name: "Developer" })} className="w-full py-4 border border-dashed border-red-600/20 text-red-600/60 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-3 active:scale-95 transition-all"><Terminal size={14}/> Developer Login</button>
+              <button onClick={() => setUser({ uid: "dev", isDemo: true, name: "Developer" })} className="w-full py-4 border border-dashed border-red-600/20 text-red-600/60 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-3 active:scale-95 transition-all"><Terminal size={14}/> Developer Access</button>
             </div>
           )}
         </div>
@@ -371,11 +365,10 @@ const App = () => {
 
   return (
     <div className={`min-h-screen bg-[#050505] text-white p-4 md:p-12 font-sans relative overflow-x-hidden ${s.text}`} dir={isArabic ? 'rtl' : 'ltr'}>
-      {/* AMBIENT BACKGROUND GLOW */}
       <motion.div style={{ x: glowX, y: glowY }} className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100vw] h-[100vw] bg-red-600/[0.02] blur-[180px] rounded-full pointer-events-none -z-10" />
 
       <div className="max-w-7xl mx-auto space-y-12 pb-40">
-        {/* HEADER SECTION */}
+        {/* HEADER ALIGNMENT (Conditional Alignment) */}
         <header className={`flex flex-col md:flex-row items-center justify-between gap-8 pb-10 border-b border-white/5 ${isArabic ? 'text-right' : 'text-left md:items-start'}`}>
           <div className="flex-1 w-full">
             <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className={`${s.welcome} font-black italic tracking-tighter leading-none`}>
@@ -399,7 +392,6 @@ const App = () => {
           </motion.div>
         </header>
 
-        {/* INPUT & FILTERS HUB */}
         <div className="flex flex-col md:flex-row gap-6 max-w-5xl mx-auto">
            <div className="flex-1 bg-white/[0.02] p-4 rounded-[3rem] border-[0.5px] border-white/10 shadow-2xl backdrop-blur-3xl focus-within:ring-1 ring-red-600/10 transition-all glass-noise">
               <div className="flex items-center gap-4">
@@ -409,9 +401,7 @@ const App = () => {
                  </div>
                  <div className="flex gap-1.5 p-1 bg-black/40 rounded-2xl">
                     {['morning', 'day', 'night'].map(sl => (
-                      <button key={sl} onClick={()=>setNewTaskSlot(sl)} className={`p-3 rounded-xl transition-all ${newTaskSlot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700'}`}>
-                        {sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}
-                      </button>
+                      <button key={sl} onClick={()=>setNewTaskSlot(sl)} className={`p-3 rounded-xl transition-all ${newTaskSlot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700'}`}>{sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}</button>
                     ))}
                  </div>
                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAddTask} className="bg-red-600 p-4 rounded-[1.8rem] hover:bg-red-500 shadow-xl transition-all text-white"><ArrowRightCircle size={28}/></motion.button>
@@ -428,8 +418,7 @@ const App = () => {
            </div>
         </div>
 
-        {/* TASK MATRIX */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-40">
            <AnimatePresence mode='popLayout'>
            {filteredTasks.length === 0 ? (
              <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 0.1 }} className="col-span-full py-40 text-center border-2 border-dashed border-white/5 rounded-[4rem] flex flex-col items-center gap-6">
@@ -442,7 +431,6 @@ const App = () => {
            </AnimatePresence>
         </div>
 
-        {/* WATER HUB MODAL */}
         <div className="fixed bottom-10 right-10 z-50 flex flex-col items-end gap-6">
            <AnimatePresence>
            {showWater && (
@@ -452,7 +440,7 @@ const App = () => {
                    <button onClick={()=>setShowWater(false)}><X size={20} className="text-zinc-600" /></button>
                 </div>
                 <div className="h-56 w-full bg-black/60 rounded-[2.5rem] relative overflow-hidden mb-8 border-[0.5px] border-white/10 shadow-inner">
-                   <motion.div animate={{ y: [0, -3, 0], x: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 12, ease: "easeInOut" }} className="absolute bottom-0 left-[-10%] w-[120%] bg-blue-600/25" style={{ height: `${Math.min(100, ((profile.waterLevel || 0) / 4000) * 100)}%` }} />
+                   <motion.div animate={{ y: [0, -3, 0], x: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 15, ease: "easeInOut" }} className="absolute bottom-0 left-[-10%] w-[120%] bg-blue-600/25" style={{ height: `${Math.min(100, ((profile.waterLevel || 0) / 4000) * 100)}%` }} />
                    <div className="absolute inset-0 flex items-center justify-center font-black text-6xl tracking-tighter opacity-70 z-10">{Math.round(((profile.waterLevel || 0) / 4000) * 100)}%</div>
                 </div>
                 <div className="flex items-center gap-2 mb-6 text-right" dir="rtl">
@@ -476,17 +464,18 @@ const App = () => {
            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setShowWater(!showWater)} className="w-20 h-20 bg-blue-600 text-white rounded-full shadow-[0_15px_40px_rgba(37,99,235,0.5)] flex items-center justify-center border-[0.5px] border-white/30 group"><Droplets size={32} className="group-hover:animate-bounce" /></motion.button>
         </div>
 
-        {/* SETTINGS OVERLAY (Full-Screen Backdrop Blur) */}
+        {/* SETTINGS OVERLAY (Full-Screen Backdrop Blur Mask) */}
         <AnimatePresence>
         {showSettings && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 text-right" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black backdrop-blur-2xl z-0" onClick={()=>setShowSettings(false)} />
+            
             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="relative w-full max-w-2xl bg-white/[0.05] border-[0.5px] border-white/10 p-12 md:p-16 rounded-[4rem] md:rounded-[5rem] shadow-2xl backdrop-blur-3xl max-h-[90vh] overflow-y-auto no-scrollbar glass-noise z-10">
                <button onClick={()=>setShowSettings(false)} className="absolute top-10 right-10 text-zinc-600 hover:text-white transition-colors z-20"><X size={32}/></button>
                <div className="space-y-16 text-left" dir="ltr">
                   <h2 className="text-4xl font-black italic mb-12 text-red-600 tracking-tighter uppercase">System Config</h2>
                   <div className="space-y-12">
-                    {/* IDENTITY SETTINGS */}
+                    {/* PROFILE SETTINGS (Name Sync) */}
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4">
                         <IDIcon size={20} className="text-red-600" />
@@ -497,7 +486,7 @@ const App = () => {
                         <input type="text" value={profile.name} onChange={(e) => handleUpdateName(e.target.value)} placeholder="Your Name..." className="bg-transparent flex-1 text-zinc-100 font-bold outline-none placeholder:text-zinc-800" />
                       </div>
                     </div>
-                    {/* SYSTEM TONE */}
+
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4">
                         <LanguagesIcon size={20} className="text-red-600" />
@@ -505,7 +494,21 @@ const App = () => {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {SYSTEM_LANGS.map(lang => (
-                          <button key={lang.id} onClick={async () => { if(user.isDemo) { setProfile({...profile, lang: lang.id}); return; } await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${profile.lang === lang.id ? 'border-red-600 text-white bg-red-600/5 shadow-[0_0_20px_rgba(220,38,38,0.1)]' : 'border-white/5 text-zinc-700 bg-white/[0.01] hover:bg-white/5'}`}><span>{String(lang.label)}</span>{profile.lang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}</button>
+                          <button key={lang.id} onClick={async () => { if(user.isDemo) { setProfile({...profile, lang: lang.id}); return; } await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${profile.lang === lang.id ? 'border-red-600 text-white bg-red-600/5 shadow-[0_0_20px_rgba(220,38,38,0.1)]' : 'border-white/5 text-zinc-700 bg-white/[0.01] hover:bg-white/5'}`}>
+                            <span>{String(lang.label)}</span>
+                            {profile.lang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4">
+                        <Maximize2 size={20} className="text-red-600" />
+                        <label className="text-[10px] font-black uppercase tracking-[0.5em] block italic">Interface Scale</label>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        {UI_SCALES.map(scale => (
+                          <button key={scale.id} onClick={async () => { if(user.isDemo) { setProfile({...profile, uiScale: scale.id}); return; } await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { uiScale: scale.id }); }} className={`p-6 rounded-2xl font-black text-[9px] transition-all border-[0.5px] tracking-widest ${profile.uiScale === scale.id ? 'border-red-600 text-red-500 bg-red-600/5' : 'border-white/5 text-zinc-700 bg-white/[0.01] hover:border-white/10'}`}>{String(scale.label).toUpperCase()}</button>
                         ))}
                       </div>
                     </div>
@@ -517,15 +520,27 @@ const App = () => {
         )}
         </AnimatePresence>
 
-        {/* ULTRA MINIMALIST FOOTER (Humam Taibeh One-Line Fix) */}
+        {/* ULTRA MINIMALIST FOOTER (Signature Refined) */}
         <footer className="mt-64 pt-24 border-t border-white/5 flex flex-col items-center justify-center px-6 pb-24 opacity-60 gap-16 text-center">
           <div className="w-full flex flex-col md:flex-row justify-between items-center gap-8 text-zinc-800 max-w-5xl">
-             <div className="flex items-center gap-2"><Shield size={14} className="text-zinc-900" /><p className="text-[8px] font-black uppercase tracking-[0.3em]">Encrypted System • AI Core Active</p></div>
-             <div className="flex items-center gap-2"><p className="text-[8px] font-black uppercase tracking-[0.3em]">GlowUp Omni Absolute • Build V43.2</p><Rocket size={14} className="text-zinc-900" /></div>
+             <div className="flex items-center gap-2">
+                <Shield size={14} className="text-zinc-900" />
+                <p className="text-[8px] font-black uppercase tracking-[0.3em]">Encrypted System • AI Core Active</p>
+             </div>
+             <div className="flex items-center gap-2">
+                <p className="text-[8px] font-black uppercase tracking-[0.3em]">GlowUp Omni Absolute • Build V43.2</p>
+                <Rocket size={14} className="text-zinc-900" />
+             </div>
           </div>
           <div className="flex flex-col items-center group cursor-default">
              <div className="relative">
-                <motion.p transition={{ duration: 0.1 }} whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} className={`text-xl md:text-2xl font-black tracking-[0.4em] uppercase leading-none text-zinc-900 transition-colors cursor-pointer select-none whitespace-nowrap`}>HUMAM TAIBEH</motion.p>
+                <motion.p 
+                  transition={{ duration: 0.1 }} 
+                  whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} 
+                  className={`text-2xl md:text-3xl font-black tracking-[0.5em] uppercase leading-none text-zinc-900 transition-colors cursor-pointer select-none whitespace-nowrap not-italic`}
+                >
+                  HUMAM TAIBEH
+                </motion.p>
                 <motion.div initial={{ scaleX: 0 }} whileHover={{ scaleX: 1 }} transition={{ duration: 0.2 }} className="absolute -bottom-4 left-0 w-full h-[1px] bg-red-600 origin-center" />
              </div>
              <p className="text-[7px] font-black text-zinc-900 uppercase tracking-[1.2em] mt-10 opacity-40 uppercase">Sovereign Productivity Engine • © 2026</p>
@@ -535,12 +550,22 @@ const App = () => {
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;700;900&display=swap');
+        
         :root { font-family: 'Tajawal', sans-serif; background-color: #050505; color-scheme: dark; scroll-behavior: smooth; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         ::-selection { background: rgba(220, 38, 38, 0.4); color: white; }
         .font-light { font-weight: 300; } .font-black { font-weight: 900; }
-        .glass-noise::before { content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0.02; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); }
+        
+        .glass-noise::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: -1;
+          opacity: 0.02;
+          pointer-events: none;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
       `}</style>
     </div>
   );
