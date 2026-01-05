@@ -44,7 +44,7 @@ import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from
 // ==========================================
 // SECTION 1: GLOBAL INITIALIZATION (HARD-WIRED)
 // ==========================================
-console.log("[SYSTEM] Build V43.2 - Final Handshake Starting...");
+console.log("[SYSTEM] Build V43.2 - Absolute Layout Handshake...");
 
 const firebaseConfig = {
   apiKey: "AIzaSyDRB_9laY7I6lG6ZpgphX5dzKiUdhwl40M",
@@ -93,15 +93,14 @@ const LANGUAGES = {
 // ==========================================
 
 const TaskCard = forwardRef(({ tk, t, onUpdate, onDelete, s, onEdit }, ref) => {
-  const isMissed = tk?.status !== 'done' && tk?.deadline && new Date(tk.deadline) < new Date();
   return (
     <motion.div
       ref={ref} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ scale: 1, backgroundColor: "rgba(255, 255, 255, 0.04)" }} onClick={() => onEdit(tk)}
-      className={`relative cursor-pointer group flex items-center gap-4 p-4 rounded-[2rem] bg-white/[0.02] backdrop-blur-3xl border-[0.5px] border-white/10 shadow-[inset_0px_1px_1px_0px_rgba(255,255,255,0.05)] transition-all duration-200 glass-noise ${tk?.status === 'done' ? 'opacity-30' : ''}`}
+      whileHover={{ scale: 1.01, backgroundColor: "rgba(255, 255, 255, 0.04)" }} onClick={() => onEdit(tk)}
+      className={`relative cursor-pointer group flex items-center gap-4 p-4 rounded-[2rem] bg-white/[0.02] backdrop-blur-3xl border-[0.5px] border-white/10 shadow-sm transition-all duration-200 glass-noise ${tk?.status === 'done' ? 'opacity-40' : ''}`}
     >
-      <div onClick={(e) => { e.stopPropagation(); onUpdate(tk); }} className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center border-[0.5px] transition-all z-10 ${tk?.status === 'done' ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-400' : tk?.status === 'doing' ? 'bg-orange-500/20 border-orange-400/30 text-orange-400 animate-pulse' : tk?.status === 'missed' ? 'bg-red-600/20 border-red-500/30 text-red-400' : 'bg-zinc-950/50 border-white/5 text-zinc-600 hover:border-white/20'}`}>
-        {tk?.status === 'done' ? <CheckCircle size={18}/> : tk?.status === 'doing' ? <Construction size={18}/> : tk?.status === 'missed' ? <X size={18}/> : <Circle size={18}/>}
+      <div onClick={(e) => { e.stopPropagation(); onUpdate(tk); }} className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center border-[0.5px] transition-all z-10 ${tk?.status === 'done' ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-400' : tk?.status === 'doing' ? 'bg-orange-500/20 border-orange-400/30 text-orange-400 animate-pulse' : 'bg-zinc-950/50 border-white/5 text-zinc-600 hover:border-white/20'}`}>
+        {tk?.status === 'done' ? <CheckCircle size={18}/> : tk?.status === 'doing' ? <Construction size={18}/> : <Circle size={18}/>}
       </div>
       <div className="flex-1 overflow-hidden text-right" dir="rtl">
         <h3 className={`text-sm md:text-base font-bold truncate ${tk?.status === 'done' ? 'line-through text-zinc-600' : 'text-zinc-100'}`}>{String(tk?.text || "")}</h3>
@@ -149,18 +148,16 @@ const App = () => {
   const t = LANGUAGES[currentLang] || LANGUAGES.ar_jo;
   const isArabic = currentLang.startsWith('ar');
 
-  // SCALE CONFIG
   const s = {
     small: { text: 'text-xs', welcome: 'text-4xl md:text-5xl', icon: 18, cardP: 'p-4' },
     default: { text: 'text-sm', welcome: 'text-6xl md:text-7xl', icon: 24, cardP: 'p-5' },
     large: { text: 'text-base', welcome: 'text-7xl md:text-8xl', icon: 30, cardP: 'p-6' }
   }[profile?.uiScale || 'default'] || { text: 'text-sm', welcome: 'text-6xl', icon: 24, cardP: 'p-5' };
 
-  // EMERGENCY START TIMEOUT: Force render after 5 seconds
+  // EMERGENCY FAIL-SAFE (Timeout)
   useEffect(() => {
     const timer = setTimeout(() => {
         if (isLoading || authChecking) {
-            console.warn("[SYSTEM] Emergency Timeout. Bypassing state locks.");
             setIsLoading(false);
             setAuthChecking(false);
         }
@@ -168,7 +165,7 @@ const App = () => {
     return () => clearTimeout(timer);
   }, [isLoading, authChecking]);
 
-  // AI QUOTES SYNC
+  // AI Quote Engine
   useEffect(() => {
     const quotes = AI_QUOTES[isArabic ? 'ar' : 'en'];
     setAiAdvice(quotes[Math.floor(Math.random() * quotes.length)]);
@@ -178,22 +175,22 @@ const App = () => {
     return () => clearInterval(interval);
   }, [isArabic]);
 
-  // HANDSHAKE & MOUSE
+  // Handshake
   useEffect(() => {
     const initAuth = async () => {
       try {
         if (auth) await signInAnonymously(auth);
-      } catch (e) { console.error("[AUTH] Fail:", e.message); }
+      } catch (e) { console.error(e); }
       finally { setAuthChecking(false); }
     };
     initAuth();
     const unsub = onAuthStateChanged(auth, setUser);
-    const handleMouseMove = (e) => { mouseX.set(e.clientX); mouseY.set(e.clientY); };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => { unsub(); window.removeEventListener('mousemove', handleMouseMove); };
+    const handleMM = (e) => { mouseX.set(e.clientX); mouseY.set(e.clientY); };
+    window.addEventListener('mousemove', handleMM);
+    return () => { unsub(); window.removeEventListener('mousemove', handleMM); };
   }, []);
 
-  // DATA SYNC
+  // Sync
   useEffect(() => {
     if (!user || authChecking || !db) {
         if (!authChecking) setIsLoading(false);
@@ -214,7 +211,6 @@ const App = () => {
     return () => { unsubP(); unsubT(); };
   }, [user, authChecking]);
 
-  // HANDLERS
   const handleUpdateName = async (n) => {
     setProfile(p => ({ ...p, name: n }));
     if (user && db) await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { name: n }, { merge: true });
@@ -243,34 +239,34 @@ const App = () => {
 
   const filteredTasks = tasks.filter(tk => (timeFilter === 'all' || tk.slot === timeFilter) && (statusFilter === 'all' || tk.status === statusFilter));
 
-  // RENDER GUARDS
+  // Loading Screen Fallback
   if ((authChecking || isLoading) && !profile?.name) {
     return (
-      <div className="h-screen bg-[#050505] flex flex-col items-center justify-center gap-6">
+      <div className="w-full min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-6">
         <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}><Loader2 className="text-red-600" size={48} /></motion.div>
         <p className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-800 animate-pulse text-center">INITIALIZING ABSOLUTE SYSTEM...</p>
       </div>
     );
   }
 
-  // IDENTITY SETUP
+  // Identity Setup
   if (!user || (user && !profile?.name)) {
     return (
-      <div className="min-h-screen bg-[#050000] flex items-center justify-center p-6 text-right font-sans" dir="rtl">
+      <div className="w-full min-h-screen bg-[#050000] flex items-center justify-center p-6 text-right font-sans" dir="rtl">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.05),transparent_75%)]"></div>
-        <div className="w-full max-w-md bg-white/[0.01] backdrop-blur-3xl border-[0.5px] border-white/10 rounded-[3rem] p-10 shadow-2xl glass-noise">
+        <div className="w-full max-w-md bg-white/[0.01] backdrop-blur-3xl border-[0.5px] border-white/10 rounded-[3rem] p-10 shadow-2xl relative glass-noise">
           <div className="text-center mb-10">
             <Rocket size={40} className="text-red-600 animate-bounce mx-auto" />
             <h1 className="text-4xl font-black text-white italic mt-4 uppercase tracking-tighter">GlowUp <span className="text-red-600 font-black">Omni</span></h1>
           </div>
           <div className="space-y-6">
-            <input autoFocus type="text" placeholder={String(t?.identity_placeholder || "Ur Name...")} className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 text-center text-2xl font-black text-white outline-none" onChange={(e)=>setTempName(e.target.value)} />
+            <input autoFocus type="text" placeholder={String(t?.identity_placeholder || "Ur Name...")} className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 text-center text-2xl font-black text-white outline-none focus:ring-1 ring-red-600/40" onChange={(e)=>setTempName(e.target.value)} />
             <button onClick={async () => {
                 if (!tempName.trim()) return;
                 const pData = { name: String(tempName), aura: 0, lang: 'ar_jo', streak: 0, lastLogin: new Date().toISOString().split('T')[0], waterLevel: 0 };
                 setProfile(pData);
                 if (user && db) await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), pData, { merge: true });
-            }} className="w-full bg-red-600 py-6 rounded-2xl font-black text-white shadow-xl text-lg uppercase active:scale-95 transition-transform">Initialize identity ⚡</button>
+            }} className="w-full bg-red-600 py-6 rounded-2xl font-black text-white shadow-xl text-lg uppercase active:scale-95 transition-all">Initialize identity ⚡</button>
           </div>
         </div>
       </div>
@@ -278,78 +274,75 @@ const App = () => {
   }
 
   return (
-    <div className={`min-h-screen bg-[#050505] text-white p-4 md:p-12 font-sans relative overflow-x-hidden ${s?.text || 'text-sm'}`} dir={isArabic ? 'rtl' : 'ltr'}>
+    <div className="w-full min-h-screen bg-[#050505] text-white font-sans relative overflow-x-hidden">
       <style>{CSS_STYLES}</style>
       <motion.div style={{ x: glowX, y: glowY }} className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100vw] h-[100vw] bg-red-600/[0.02] blur-[180px] rounded-full pointer-events-none -z-10" />
 
-      <div className="max-w-7xl mx-auto space-y-12 pb-40">
-        {/* SMART HEADER ALIGNMENT */}
-        <header className={`flex flex-col md:flex-row items-center justify-between gap-8 pb-10 border-b border-white/5 ${isArabic ? 'text-right' : 'text-left md:items-start'}`}>
-          <div className="flex-1 w-full">
+      {/* CORE CONTAINER */}
+      <div className="max-w-7xl mx-auto w-full p-4 md:p-12 flex flex-col gap-12 pb-40">
+        
+        {/* SMART HEADER */}
+        <header className={`flex flex-col md:flex-row items-center justify-between gap-8 pb-10 border-b border-white/5 ${isArabic ? 'md:flex-row-reverse' : 'md:flex-row'}`}>
+          <div className={`flex-1 w-full ${isArabic ? 'text-right' : 'text-left'}`}>
             <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className={`${s?.welcome || 'text-6xl'} font-black italic tracking-tighter leading-none`}>
               {String(t?.welcome?.replace('{name}', '') || "Hi")} 
               <span className="text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,0.4)] uppercase font-black"> {String(profile?.name || "User")}</span>
             </motion.h1>
-            <div className={`flex items-center gap-4 mt-4 h-8 overflow-hidden`}>
+            <div className={`flex items-center gap-4 mt-4 h-8 overflow-hidden ${isArabic ? 'justify-end' : 'justify-start'}`}>
               <AnimatePresence mode='wait'>
-                <motion.p key={aiAdvice} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.3 }} className="font-light text-zinc-500 italic max-w-2xl truncate text-base">"{String(aiAdvice || "Locked in.")}"</motion.p>
+                <motion.p key={aiAdvice} initial={{ opacity: 0, x: isArabic ? 10 : -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: isArabic ? -10 : 10 }} transition={{ duration: 0.3 }} className="font-light text-zinc-500 italic max-w-2xl truncate text-base">"{String(aiAdvice || "Locked in.")}"</motion.p>
               </AnimatePresence>
             </div>
           </div>
-          <motion.div initial={{ scale: 0.95 }} animate={{ scale: [0.95, 1.05, 0.95] }} transition={{ repeat: Infinity, duration: 4 }} className="flex items-center gap-4 bg-white/[0.01] p-3 md:p-4 rounded-[3rem] border-[0.5px] border-white/10 backdrop-blur-3xl shadow-2xl">
+
+          <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="flex items-center gap-4 bg-white/[0.01] p-3 md:p-4 rounded-[3rem] border-[0.5px] border-white/10 backdrop-blur-3xl shadow-2xl">
              <div className="flex items-center gap-3 px-8 border-l border-white/5">
-                <Flame size={24} className={profile?.streak > 0 ? "text-orange-500" : "text-zinc-800"} />
+                <Flame size={24} className={profile?.streak > 0 ? "text-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)]" : "text-zinc-800"} />
                 <span className="text-5xl font-black tracking-tighter">{profile?.streak || 0}</span>
              </div>
              <button onClick={()=>setShowSettings(true)} className="p-4 hover:bg-white/5 rounded-2xl text-zinc-600 hover:text-red-600 transition-all active:scale-90"><Settings2 size={24} /></button>
           </motion.div>
         </header>
 
-        {/* INPUT HUB */}
-        <div className="flex flex-col md:flex-row gap-6 max-w-5xl mx-auto">
-           <div className="flex-1 bg-white/[0.02] p-4 rounded-[3rem] border-[0.5px] border-white/10 shadow-2xl backdrop-blur-3xl focus-within:ring-1 ring-red-600/10 transition-all glass-noise">
-              <div className="flex items-center gap-4 px-4">
-                 <Plus size={24} className="text-zinc-800" />
-                 <input value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && handleAddTask()} placeholder={String(t?.add_task || "What's next?")} className="bg-transparent flex-1 text-lg font-bold text-white outline-none py-4" />
-                 <div className="flex gap-2 bg-black/40 rounded-2xl p-1">
-                    {['morning', 'day', 'night'].map(sl => (<button key={sl} onClick={()=>setNewTaskSlot(sl)} className={`p-3 rounded-xl transition-all ${newTaskSlot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700'}`}>{sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}</button>))}
+        {/* FLUID INPUT HUB */}
+        <div className="w-full max-w-5xl mx-auto space-y-6">
+           <div className="w-full bg-white/[0.02] p-4 rounded-[3rem] border-[0.5px] border-white/10 shadow-2xl backdrop-blur-3xl focus-within:ring-1 ring-red-600/10 transition-all glass-noise">
+              <div className="flex items-center gap-4 w-full">
+                 <div className="flex-1 flex items-center px-6 bg-black/40 rounded-[2.2rem] border border-white/10 min-h-[60px]">
+                    <Plus size={24} className="text-zinc-800" />
+                    <input value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && handleAddTask()} placeholder={String(t?.add_task || "What's next?")} className="bg-transparent flex-1 text-lg font-bold text-white outline-none py-4" />
+                    <div className="hidden md:flex gap-2 bg-black/40 rounded-2xl p-1 ml-4">
+                      {['morning', 'day', 'night'].map(sl => (<button key={sl} onClick={()=>setNewTaskSlot(sl)} className={`p-2.5 rounded-xl transition-all ${newTaskSlot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700 hover:text-zinc-400'}`}>{sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}</button>))}
+                    </div>
                  </div>
                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAddTask} className="bg-red-600 p-4 rounded-[1.8rem] hover:bg-red-500 shadow-xl transition-all text-white"><ArrowRightCircle size={28}/></motion.button>
               </div>
            </div>
-           <div className="flex gap-3 p-3 bg-white/[0.01] border-[0.5px] border-white/10 rounded-[2.5rem] backdrop-blur-xl">
+
+           <div className="flex justify-center gap-3 p-3 bg-white/[0.01] border-[0.5px] border-white/10 rounded-[2.5rem] backdrop-blur-xl">
               <select value={timeFilter} onChange={(e)=>setTimeFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-zinc-500 outline-none cursor-pointer px-2">{Object.entries(t?.slots || {}).map(([k, v]) => <option key={k} value={k} className="bg-[#09090b]">{String(v)}</option>)}</select>
               <select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-zinc-500 outline-none cursor-pointer px-2"><option value="all" className="bg-[#09090b]">All States</option>{Object.entries(t?.status || {}).map(([k, v]) => <option key={k} value={k} className="bg-[#09090b]">{String(v)}</option>)}</select>
            </div>
         </div>
 
-        {/* TASK MATRIX */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-40">
+        {/* BALANCED TASK GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
            <AnimatePresence mode='popLayout'>
-           {filteredTasks.length === 0 ? (<motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 0.1 }} className="col-span-full py-40 text-center border-2 border-dashed border-white/5 rounded-[4rem] flex flex-col items-center gap-6"><ZapOff size={80} className="text-zinc-800" /><p className="text-2xl font-black italic tracking-widest uppercase text-zinc-800">Clear</p></motion.div>) : filteredTasks.map((tk) => (<TaskCard key={tk.id} tk={tk} t={t} s={s} onUpdate={updateStatus} onDelete={(id) => deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id))} onEdit={(task) => setEditingTask(task)} />))}
+           {filteredTasks.length === 0 ? (
+             <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 0.1 }} className="col-span-full py-40 text-center border-2 border-dashed border-white/5 rounded-[4rem] flex flex-col items-center gap-6">
+                <ZapOff size={80} className="text-zinc-800" />
+                <p className="text-2xl font-black italic tracking-widest uppercase text-zinc-800">No Tasks in Orbit</p>
+             </motion.div>
+           ) : filteredTasks.map((tk) => (<TaskCard key={tk.id} tk={tk} t={t} s={s} onUpdate={updateStatus} onDelete={(id) => deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id))} onEdit={(task) => setEditingTask(task)} />))}
            </AnimatePresence>
         </div>
 
-        {/* WATER HUB */}
-        <div className="fixed bottom-10 right-10 z-50 flex flex-col items-end gap-6">
-           <AnimatePresence>
-           {showWater && (
-             <motion.div initial={{ opacity: 0, scale: 0.8, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: 20 }} className="bg-zinc-950/98 border-[0.5px] border-white/20 p-8 rounded-[4rem] shadow-[0_30px_100px_rgba(0,0,0,1)] w-80 backdrop-blur-3xl overflow-hidden glass-noise">
-                <div className="flex justify-between items-center mb-8 relative z-10 px-2 text-right" dir="rtl"><h4 className="font-black text-xl italic uppercase tracking-tighter text-blue-500">{t?.water.label}</h4><button onClick={()=>setShowWater(false)}><X size={20} className="text-zinc-600" /></button></div>
-                <div className="h-56 w-full bg-black/60 rounded-[2.5rem] relative overflow-hidden mb-8 border-[0.5px] border-white/10 shadow-inner"><motion.div animate={{ y: [0, -3, 0], x: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 15, ease: "easeInOut" }} className="absolute bottom-0 left-[-10%] w-[120%] bg-blue-600/25" style={{ height: `${Math.min(100, ((profile?.waterLevel || 0) / 4000) * 100)}%` }} /><div className="absolute inset-0 flex items-center justify-center font-black text-6xl tracking-tighter opacity-70 z-10">{Math.round(((profile?.waterLevel || 0) / 4000) * 100)}%</div></div>
-                <div className="flex items-center gap-2 mb-6 text-right" dir="rtl">{[100, 250, 600].map(v => (<button key={v} onClick={()=>addWater(v)} className="flex-1 bg-white/5 hover:bg-blue-600/10 py-4 rounded-2xl font-black text-[10px] transition-all border border-white/10">{v}ml</button>))}</div>
-                <div className="flex gap-2"><input type="number" value={customWater} onChange={(e)=>setCustomWater(e.target.value)} placeholder={String(t?.water.custom)} className="flex-1 bg-black/60 border border-white/10 rounded-2xl p-4 text-xs font-black text-white outline-none" /><button onClick={()=>addWater(customWater)} className="bg-blue-600 p-4 rounded-2xl shadow-lg transition-transform"><Plus size={20}/></button></div></motion.div>
-           )}
-           </AnimatePresence>
-           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setShowWater(!showWater)} className="w-20 h-20 bg-blue-600 text-white rounded-full shadow-[0_15px_40px_rgba(37,99,235,0.5)] flex items-center justify-center border-[0.5px] border-white/30 group"><Droplets size={32} className="group-hover:animate-bounce" /></motion.button>
-        </div>
-
-        {/* SETTINGS OVERLAY (Full-Screen Backdrop Blur) */}
+        {/* SETTINGS OVERLAY (TOTAL ISOLATION) */}
         <AnimatePresence>
         {showSettings && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 text-right" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black backdrop-blur-2xl z-0" onClick={()=>setShowSettings(false)} />
-            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="relative w-full max-w-2xl bg-white/[0.05] border-[0.5px] border-white/10 p-12 md:p-16 rounded-[4rem] md:rounded-[5rem] shadow-2xl backdrop-blur-3xl max-h-[90vh] overflow-y-auto no-scrollbar glass-noise z-10">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.8 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#050505] backdrop-blur-3xl z-0" onClick={()=>setShowSettings(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-2xl bg-white/[0.05] border-[0.5px] border-white/10 p-12 md:p-16 rounded-[4rem] shadow-2xl backdrop-blur-3xl max-h-[90vh] overflow-y-auto no-scrollbar glass-noise z-10">
                <button onClick={()=>setShowSettings(false)} className="absolute top-10 right-10 text-zinc-600 hover:text-white transition-colors z-20"><X size={32}/></button>
                <div className="space-y-16 text-left" dir="ltr">
                   <h2 className="text-4xl font-black italic mb-12 text-red-600 tracking-tighter uppercase">System Config</h2>
@@ -360,11 +353,7 @@ const App = () => {
                     </div>
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4"><LanguagesIcon size={20} className="text-red-600" /><label className="text-[10px] font-black uppercase tracking-[0.5em] block italic">System Tone</label></div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{SYSTEM_LANGS.map(lang => (<button key={lang.id} onClick={async () => { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${currentLang === lang.id ? 'border-red-600 text-white bg-red-600/5' : 'border-white/5 text-zinc-700 bg-white/[0.01]'}`}><span>{String(lang.label)}</span>{currentLang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}</button>))}</div>
-                    </div>
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4"><Maximize2 size={20} className="text-red-600" /><label className="text-[10px] font-black uppercase tracking-[0.5em] block italic">Interface Scale</label></div>
-                      <div className="grid grid-cols-3 gap-4">{UI_SCALES.map(scale => (<button key={scale.id} onClick={async () => { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { uiScale: scale.id }); }} className={`p-6 rounded-2xl font-black text-[9px] transition-all border-[0.5px] tracking-widest ${profile?.uiScale === scale.id ? 'border-red-600 text-red-500 bg-red-600/5' : 'border-white/5 text-zinc-700 bg-white/[0.01]'}`}>{String(scale.label).toUpperCase()}</button>))}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{SYSTEM_LANGS.map(lang => (<button key={lang.id} onClick={async () => { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${currentLang === lang.id ? 'border-red-600 text-white bg-red-600/5 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'border-white/5 text-zinc-700 bg-white/[0.01]'}`}><span>{String(lang.label)}</span>{currentLang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}</button>))}</div>
                     </div>
                     <button onClick={async ()=>{ await signOut(auth); window.location.reload(); }} className="w-full py-8 bg-zinc-950 border-[0.5px] border-red-600/20 text-red-500 rounded-3xl font-black uppercase tracking-[0.5em] shadow-xl hover:bg-red-600 hover:text-white transition-all active:scale-95 leading-none">End Session</button>
                   </div>
@@ -374,12 +363,14 @@ const App = () => {
         )}
         </AnimatePresence>
 
-        {/* ULTRA MINIMALIST FOOTER (FIXED SIGNATURE) */}
-        <footer className="mt-64 pt-24 border-t border-white/5 flex flex-col items-center justify-center px-6 pb-24 opacity-60 gap-16 text-center">
-          <div className="w-full flex flex-col md:flex-row justify-between items-center gap-8 text-zinc-800 max-w-5xl">
+        {/* THE SOVEREIGN FOOTER */}
+        <footer className="mt-64 pt-24 border-t border-white/5 flex flex-col items-center justify-center opacity-60 gap-16 text-center">
+          <div className="w-full flex justify-between items-center text-zinc-800 max-w-5xl px-4">
              <div className="flex items-center gap-2"><Shield size={14} /><p className="text-[8px] font-black uppercase tracking-[0.3em]">Encrypted System • AI Core Active</p></div>
              <div className="flex items-center gap-2"><p className="text-[8px] font-black uppercase tracking-[0.3em]">GlowUp Omni Absolute • Build V43.2</p><Rocket size={14} /></div>
           </div>
+          
+          {/* CENTER ALIGNED SIGNATURE */}
           <div className="flex flex-col items-center group cursor-default">
              <div className="relative">
                 <motion.p 
