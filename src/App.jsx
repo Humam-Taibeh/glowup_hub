@@ -22,7 +22,8 @@ import {
   deleteDoc, 
   addDoc,
   serverTimestamp,
-  query
+  query,
+  where
 } from 'firebase/firestore';
 import { 
   CheckCircle2, Circle, Plus, Trash2, Sparkles, TrendingUp, Zap, 
@@ -31,7 +32,7 @@ import {
   Gem, Filter, RefreshCw, Save, Search, Activity,
   FlameKindling, CheckCircle, Construction, CalendarDays, ArchiveX, History, Calendar, Edit2, LogOut,
   Mail, Lock, UserPlus, KeyRound, ArrowRightCircle, ShieldCheck, Settings2,
-  Smartphone, ExternalLink, BookOpen, AlertCircle, MapPin, User, Book, Star, Wand2, Sun, CloudSun, Droplets, Timer
+  Smartphone, ExternalLink, BookOpen, AlertCircle, MapPin, User, Book, Star, Wand2, Sun, CloudSun, Droplets, Timer, Info, ChevronRight, ChevronLeft
 } from 'lucide-react';
 
 // --- 1. FIREBASE CONFIGURATION (OFFICIAL PROJECT: aura-sovereign) ---
@@ -45,18 +46,17 @@ const firebaseConfig = {
   measurementId: "G-CM81C8ED35"
 };
 
-// RULE 1: Sanitize path segments to ensure even segments for Firestore paths
-const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'aura_sovereign_v49_final';
+// RULE 1: Sanitize path segments for Firestore paths (Even segments only)
+const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'aura_sovereign_v50_titan';
 const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
-// Environment Detection Logic
+// Initialize Firebase
 const actualConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
 const app = initializeApp(actualConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 // --- 2. AI CONFIGURATION ---
-const apiKey = ""; 
 const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
 
 const App = () => {
@@ -70,9 +70,9 @@ const App = () => {
   const [lang, setLang] = useState("ar"); 
   const [config, setConfig] = useState({ fontSize: 'medium', iconSize: 'medium' });
 
-  // UI & AUTH STATES
+  // UI & AUTH FLOW STATES
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [authMode, setAuthMode] = useState('login'); // login, register, reset
+  const [authMode, setAuthMode] = useState('login'); // login, register, reset, guestMode
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tempName, setTempName] = useState("");
@@ -96,7 +96,7 @@ const App = () => {
   const [isCustomTime, setIsCustomTime] = useState(false);
   const timerRef = useRef(null);
 
-  // SETTINGS & FILTER DRAFTS
+  // DRAFTS
   const [draftName, setDraftName] = useState("");
   const [filterSlot, setFilterSlot] = useState('all'); 
   const [filterStatus, setFilterStatus] = useState('all'); 
@@ -109,7 +109,7 @@ const App = () => {
     return { zoom: scales[config.fontSize] || 1 };
   }, [config.fontSize]);
 
-  // ZUJ FINAL EXAM INTEL
+  // ZUJ EXAM INTEL
   const exams = useMemo(() => [
     { id: 1, name: "الريادة والابتكار", date: "14/1/2026", time: "12:00-1:00", instructor: "د. يوسف أبوزغلة", location: "مختبرات 216", daysLeft: 9, material: "الفصل 1 - 6" },
     { id: 2, name: "Data Analytics", date: "21/1/2026", time: "11:30-1:30", instructor: "Dr. Ibrahim Atoum", location: "TBD", daysLeft: 16, material: "All Lectures" },
@@ -117,7 +117,7 @@ const App = () => {
     { id: 4, name: "Data Mining", date: "2/2/2026", time: "2:00-3:30", instructor: "Dr. Bilal Hawashin", location: "TBD", daysLeft: 28, material: "Full Syllabus" }
   ], []);
 
-  // --- 3. DICTIONARY (Anti-Object Crash) ---
+  // --- 3. DICTIONARY (Universal & Sanitized) ---
   const d = useMemo(() => ({
     welcome: "يا هلا.. عرفني عن اسمك؟",
     googleBtn: "Cloud Sync (Google) ☁️",
@@ -151,7 +151,7 @@ const App = () => {
     auraGuide: "كل مهمة بتخلصها بتزيد الآورا 10 نقاط. الستريك بلمع كل ما خلصت مهام اليوم!"
   }), []);
 
-  // --- 4. FIREBASE AUTHENTICATION (Rule 3: Auth First) ---
+  // --- 4. FIREBASE AUTHENTICATION (RULE 3: Auth First) ---
   useEffect(() => {
     const initAuth = async () => {
       setIsAuthLoading(true);
@@ -159,7 +159,7 @@ const App = () => {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         }
-      } catch (err) { console.error("Initial Token Failed"); }
+      } catch (err) { console.error("Initial Auth Failure"); }
       setIsAuthLoading(false);
     };
     initAuth();
@@ -173,7 +173,7 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // --- 5. CLOUD DATA SYNC ---
+  // --- 5. CLOUD SYNC ENGINE (RULE 1 & 2) ---
   useEffect(() => {
     if (!user) return;
     const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data');
@@ -186,17 +186,18 @@ const App = () => {
         setStreak(data.streak || 0);
         setWaterTotal(data.water || 0);
         setLang(data.lang || "ar");
+        setConfig(data.config || { fontSize: 'medium', iconSize: 'medium' });
       } else {
-        setUserName(""); // Triggers name prompt if profile doesn't exist
+        setUserName(""); // Triggers Identity Protocol screen
       }
       setIsAuthLoading(false);
-    });
+    }, (error) => console.error("Cloud Access Restricted:", error));
 
     const tasksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
     const unsubTasks = onSnapshot(tasksRef, (snap) => {
       const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTasks(list.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)));
-    });
+    }, (error) => console.error("Tasks Access Restricted:", error));
 
     return () => { unsubProfile(); unsubTasks(); };
   }, [user]);
@@ -213,7 +214,11 @@ const App = () => {
         await createUserWithEmailAndPassword(auth, email, password);
       }
     } catch (err) { 
-      setLoginError(authMode === 'login' ? "بيانات الدخول غير صحيحة ⚠️" : "حدث خطأ في إنشاء الحساب ⚠️");
+      const code = err.code;
+      if (code === 'auth/user-not-found') setLoginError("الحساب غير موجود ⚠️");
+      else if (code === 'auth/wrong-password') setLoginError("كلمة السر خطأ ⚠️");
+      else if (code === 'auth/email-already-in-use') setLoginError("الإيميل مستخدم مسبقاً ⚠️");
+      else setLoginError("خطأ في البيانات.. تأكد وحاول ثانية ⚠️");
     } finally { setIsActionLoading(false); }
   };
 
@@ -224,12 +229,13 @@ const App = () => {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider); 
     } catch (err) { 
-      setLoginError("قوقل مقيد حالياً. استخدم الإيميل أو الضيف! ⚠️"); 
+      setLoginError("قوقل مقيد في هذا النطاق. ضيف الرابط في Authorized Domains! ⚠️"); 
     } finally { setIsGoogleLoading(false); }
   };
 
   const handleGuestSignIn = async () => {
     setIsActionLoading(true);
+    setLoginError("");
     try { await signInAnonymously(auth); }
     catch (err) { setLoginError("فشل الدخول كضيف."); }
     finally { setIsActionLoading(false); }
@@ -238,6 +244,14 @@ const App = () => {
   const handleLogout = async () => {
     await signOut(auth);
     window.location.reload();
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email) return setLoginError("اكتب إيميلك أولاً! ⚠️");
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccessMsg("تم إرسال رابط إعادة التعيين ✅");
+    } catch (e) { setLoginError("فشل إرسال الرابط."); }
   };
 
   const saveProfile = async (updates) => {
@@ -257,6 +271,7 @@ const App = () => {
   };
 
   const toggleTask = async (id) => {
+    if (!user) return;
     const task = tasks.find(t => t.id === id);
     if (!task) return;
     const sequence = ['todo', 'doing', 'done'];
@@ -270,6 +285,11 @@ const App = () => {
     saveProfile({ aura: auraUpdate });
   };
 
+  const deleteTask = async (id) => { 
+    if (!user) return;
+    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id)); 
+  };
+
   const addWater = (amt) => {
     const newVal = Math.min(waterTotal + amt, 4000);
     setWaterTotal(newVal);
@@ -278,7 +298,7 @@ const App = () => {
 
   const refreshAiQuote = () => {
     setIsAiLoading(true);
-    const quotes = ["الالتزام هو اللي بيصنع الفرق.. 🔥", "الوحوش ما بتوقف.. كمل طريقك! 🦾", "كل مهمة بتخلصها هي خطوة للقمة. 👑", "ZUJ AI CORE: Operational."];
+    const quotes = ["الالتزام هو اللي بيصنع الفرق.. 🔥", "الوحوش ما بتوقف.. كمل طريقك! 🦾", "كل مهمة بتخلصها هي خطوة للقمة. 👑", "ZUJ AI: Excellence in every byte."];
     setTimeout(() => {
       setCurrentQuote(quotes[Math.floor(Math.random() * quotes.length)]);
       setIsAiLoading(false);
@@ -291,13 +311,19 @@ const App = () => {
     return () => clearInterval(timerRef.current);
   }, [timerActive, timeLeft]);
 
+  const ringOffset = 502 - (502 * (timeLeft / (selectedDuration * 60)));
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
   const updateTimer = (m) => { setTimerActive(false); setTimeLeft(m * 60); setSelectedDuration(m); setIsCustomTime(false); };
 
   // --- 7. UI RENDERING ---
 
   if (isAuthLoading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 size={64} className="text-blue-500 animate-spin" /></div>;
 
-  // 🚪 AUTH VAULT (THE TITAN GATE)
+  // 🛡️ THE ALPHA VAULT (AUTH GATE)
   if (!user || !userName) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-right font-sans overflow-hidden">
@@ -309,7 +335,7 @@ const App = () => {
           <div className="glass p-16 rounded-[4rem] text-center shadow-2xl border border-white/5 overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 shadow-[0_0_15px_blue]"></div>
             <Rocket size={48} className="text-blue-500 mx-auto mb-10 animate-bounce" />
-            <h1 className="text-7xl font-black mb-4 italic text-white uppercase leading-none tracking-tighter">GLOWUP</h1>
+            <h1 className="text-7xl font-black mb-4 italic text-white uppercase leading-none tracking-tighter logo-glow">GLOWUP</h1>
             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.6em] mb-12 italic">{String(d.heroSub)}</p>
             
             <div className="space-y-8">
@@ -323,30 +349,32 @@ const App = () => {
                     onChange={(e)=>{setTempName(e.target.value); setLoginError("");}}
                     onKeyDown={(e)=>e.key==='Enter' && (!tempName.trim() ? setLoginError(String(d.errorName)) : saveProfile({name:tempName, aura:0, streak:0}))}
                   />
-                  <button onClick={()=> !tempName.trim() ? setLoginError(String(d.errorName)) : saveProfile({name: tempName, aura: 0, streak: 0})} className="w-full bg-blue-600 hover:bg-blue-500 py-6 rounded-[2.5rem] font-black text-white uppercase tracking-widest active:scale-95 transition-all shadow-xl">ابدأ الآن 🚀</button>
+                  <button onClick={()=> !tempName.trim() ? setLoginError(String(d.errorName)) : saveProfile({name: tempName, aura: 0, streak: 0})} className="w-full bg-blue-600 hover:bg-blue-500 py-6 rounded-[2.5rem] font-black text-white uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-blue-900/40">ابدأ الآن 🚀</button>
                   <button onClick={handleLogout} className="text-xs text-slate-600 font-bold uppercase tracking-widest hover:text-white transition-all underline">العودة لشاشة الدخول</button>
                 </div>
+              ) : authMode === 'reset' ? (
+                /* PASSWORD RESET */
+                <div className="space-y-6 text-right animate-in slide-in-from-bottom-2">
+                   <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5 shadow-inner flex items-center gap-4">
+                      <Mail className="text-slate-600" size={20} />
+                      <input type="email" placeholder="Email" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right" onChange={(e)=>setEmail(e.target.value)} />
+                   </div>
+                   <button onClick={handlePasswordReset} className="w-full bg-indigo-600 py-5 rounded-3xl font-black text-white active:scale-95 transition-all">إرسال رابط التعيين</button>
+                   <button onClick={() => setAuthMode('login')} className="w-full text-center text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest transition-all">العودة للدخول</button>
+                </div>
               ) : (
-                /* AUTH MODES */
+                /* LOGIN OPTIONS */
                 <div className="space-y-6">
-                  {authMode === 'reset' ? (
-                    <div className="space-y-6 animate-in slide-in-from-bottom-2">
-                       <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5 shadow-inner"><input type="email" placeholder="Email" className="bg-transparent w-full outline-none font-bold text-white text-right" onChange={(e)=>setEmail(e.target.value)} /></div>
-                       <button onClick={()=>sendPasswordResetEmail(auth, email).then(()=>setSuccessMsg("Check your inbox!"))} className="w-full bg-indigo-600 py-5 rounded-3xl font-black text-white">إرسال رابط التعيين</button>
-                       <button onClick={()=>setAuthMode('login')} className="text-xs text-slate-500 font-bold uppercase underline">العودة للدخول</button>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleEmailAuth} className="space-y-4">
-                      <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Mail className="text-slate-600" size={20} /><input type="email" placeholder="Email" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right" onChange={(e)=>setEmail(e.target.value)} required /></div>
-                      <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Lock className="text-slate-600" size={20} /><input type="password" placeholder="Password" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right" onChange={(e)=>setPassword(e.target.value)} required /></div>
-                      <button type="submit" disabled={isActionLoading} className="w-full bg-blue-600 hover:bg-blue-500 py-6 rounded-3xl font-black text-white active:scale-95 transition-all shadow-xl shadow-blue-900/30">{authMode === 'login' ? String(d.emailBtn) : String(d.registerBtn)}</button>
-                    </form>
-                  )}
+                  <form onSubmit={handleEmailAuth} className="space-y-4">
+                    <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Mail className="text-slate-600" size={20} /><input type="email" placeholder="Email" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right" onChange={(e)=>setEmail(e.target.value)} required /></div>
+                    <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Lock className="text-slate-600" size={20} /><input type="password" placeholder="Password" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right" onChange={(e)=>setPassword(e.target.value)} required /></div>
+                    <button type="submit" disabled={isActionLoading} className="w-full bg-blue-600 hover:bg-blue-500 py-6 rounded-3xl font-black text-white active:scale-95 transition-all shadow-xl shadow-blue-900/30">{authMode === 'login' ? String(d.emailBtn) : String(d.registerBtn)}</button>
+                  </form>
                   <div className="flex justify-between text-[10px] font-black uppercase text-slate-500 px-4">
-                    <button type="button" onClick={()=>setAuthMode(authMode==='login'?'register':'login')}>{authMode==='login'?'Create Account':'Sign In'}</button>
+                    <button type="button" onClick={()=>setAuthMode(authMode==='login'?'register':'login')}>{authMode==='login'?'Join Squad':'Back to Login'}</button>
                     <button type="button" onClick={()=>setAuthMode('reset')}>{String(d.resetBtn)}</button>
                   </div>
-                  <div className="relative py-4"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5 opacity-10"></div></div><div className="relative flex justify-center text-[10px] font-black uppercase bg-[#0f172a] px-4 italic">Quick Connect</div></div>
+                  <div className="relative py-4"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5 opacity-10"></div></div><div className="relative flex justify-center text-[10px] font-black uppercase bg-[#0f172a] px-4 italic text-slate-600">Secure Access</div></div>
                   <div className="grid grid-cols-2 gap-4">
                     <button onClick={handleGoogleSignIn} disabled={isGoogleLoading} className="bg-white text-slate-900 p-5 rounded-3xl font-black text-[10px] uppercase transition-all hover:bg-slate-100 flex items-center justify-center gap-2 shadow-sm">{isGoogleLoading ? <Loader2 size={16} className="animate-spin" /> : <><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="google"/> GOOGLE</>}</button>
                     <button onClick={handleGuestSignIn} className="bg-slate-800 text-white p-5 rounded-3xl font-black text-[10px] uppercase transition-all hover:bg-slate-700 flex items-center justify-center gap-2 shadow-sm"><Zap size={16} className="text-yellow-400" /> GUEST</button>
@@ -355,7 +383,7 @@ const App = () => {
               )}
               {loginError && <p className="text-red-500 text-[11px] font-black animate-pulse text-center">{String(loginError)}</p>}
               {successMsg && <p className="text-emerald-500 text-[11px] font-black text-center">{String(successMsg)}</p>}
-              <div className="flex items-center justify-center gap-3 opacity-30 mt-8"><ShieldCheck size={14}/><p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Cloud Shield Protocol Active • V49.0</p></div>
+              <div className="flex items-center justify-center gap-3 opacity-30 mt-8"><ShieldCheck size={14}/><p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Cloud Shield Protocol Active • V50.0</p></div>
             </div>
           </div>
         </div>
@@ -363,7 +391,7 @@ const App = () => {
     );
   }
 
-  // 🦾 MAIN OPERATIONAL HUB
+  // 🦾 MAIN OPERATIONAL HUB (POST-AUTH)
   return (
     <div className={`min-h-screen transition-all duration-1000 p-6 md:p-8 pb-48 font-sans selection:bg-blue-500/30 overflow-x-hidden ${isGymMode ? 'bg-[#0b011d]' : 'bg-[#020617]'}`}>
       {isGymMode && <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden opacity-30"><div className="absolute bottom-0 left-0 w-full h-64 bg-gradient-to-t from-purple-600/40 to-transparent animate-heat-rise"></div></div>}
@@ -372,7 +400,7 @@ const App = () => {
         <div className={`absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] blur-[150px] rounded-full transition-all duration-1000 ${isGymMode ? 'bg-red-900/30' : 'bg-indigo-600/5'}`}></div>
       </div>
 
-      <div className="w-full max-w-[1500px] mx-auto main-wrapper" style={{ zoom: scalingStyles.zoom }}>
+      <div className="w-full max-w-[1600px] mx-auto main-wrapper" style={{ zoom: scalingStyles.zoom }}>
         
         {/* HEADER */}
         <header className="flex flex-col md:flex-row justify-between items-start gap-12 mb-20 border-b border-white/5 pb-12 text-right animate-in slide-in-from-top-10 duration-1000">
@@ -403,32 +431,33 @@ const App = () => {
             
             {/* COLUMN 1: VITALS (4/12) */}
             <div className="lg:col-span-4 space-y-12">
-                {/* Hydration Ops */}
+                {/* Hydration Tracker */}
                 <section className="bg-slate-900/60 p-10 rounded-[4rem] border border-white/5 shadow-2xl relative overflow-hidden group">
                     <Droplets size={150} className="absolute -right-10 -top-10 opacity-5 text-cyan-500" />
                     <div className="flex justify-between items-center mb-8 relative z-10 text-right">
-                        <h2 className="text-xs font-black uppercase tracking-[0.4em] text-cyan-400 flex items-center gap-2 italic">Hydration Ops</h2>
+                        <h2 className="text-xs font-black uppercase tracking-[0.4em] text-cyan-400 flex items-center gap-2 italic"><Droplets size={14}/> Hydration Ops</h2>
                         <p className="text-3xl font-black text-white">{waterTotal}ml</p>
                     </div>
-                    <div className="h-4 bg-slate-800 rounded-full mb-8 overflow-hidden shadow-inner"><div className="h-full bg-cyan-500 transition-all duration-1000 shadow-[0_0_15px_cyan]" style={{width:`${(waterTotal/2000)*100}%`}}></div></div>
+                    <div className="h-4 bg-slate-800 rounded-full mb-8 overflow-hidden shadow-inner"><div className="h-full bg-cyan-500 transition-all duration-1000 shadow-[0_0_15px_cyan]" style={{width:`${(waterTotal/4000)*100}%`}}></div></div>
                     <div className="grid grid-cols-3 gap-3">
-                        {[250, 500, 750].map(amt => <button key={amt} onClick={()=>addWater(amt)} className="py-6 rounded-2xl bg-slate-800 hover:bg-cyan-900/40 text-xs font-black border border-white/5 transition-all active:scale-90 shadow-sm">+{amt}</button>)}
+                        {[250, 500, 1000].map(amt => <button key={amt} onClick={()=>addWater(amt)} className="py-6 rounded-2xl bg-slate-800 hover:bg-cyan-900/40 text-xs font-black border border-white/5 transition-all active:scale-90 shadow-sm">+{amt}</button>)}
                     </div>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase mt-6 tracking-widest text-center italic">Daily Target: 2.0L+</p>
                 </section>
 
-                {/* ZUJ Exam Hub */}
+                {/* ZUJ Exams (The Humam Schedule) */}
                 <section className="bg-slate-900/60 p-10 rounded-[4rem] border border-white/5 shadow-2xl relative group overflow-hidden">
                     <BookOpen size={150} className="absolute -right-10 -top-10 opacity-5 text-purple-400" />
                     <h2 className="text-xs font-black uppercase tracking-[0.4em] text-purple-400 mb-10 flex items-center gap-3 italic"><Calendar size={16}/> ZUJ EXAM OPS</h2>
                     <div className="space-y-4 relative z-10">
                         {exams.map(ex => (
                             <div key={ex.id} className="p-7 rounded-[3rem] bg-slate-950/60 border border-slate-800 flex justify-between items-center hover:border-purple-500/40 transition-all cursor-pointer shadow-lg active:scale-95 group/item">
-                                <div className="text-right flex-1">
-                                    <p className="text-xl font-black text-white uppercase tracking-tight group-hover/item:text-purple-300 transition-colors">{ex.name}</p>
+                                <div className="text-right flex-1 overflow-hidden">
+                                    <p className="text-xl font-black text-white uppercase tracking-tight truncate group-hover/item:text-purple-300 transition-colors">{ex.name}</p>
                                     <p className="text-[11px] text-slate-500 font-bold mt-2 tracking-[0.1em]">{ex.date} | {ex.time}</p>
                                     <p className="text-[10px] text-purple-600 font-black mt-1 uppercase italic">{ex.instructor}</p>
                                 </div>
-                                <div className={`text-[11px] font-black px-4 py-2 rounded-full border shadow-inner ${ex.daysLeft < 10 ? 'bg-red-500/10 border-red-500/30 text-red-500 animate-pulse' : 'bg-purple-500/10 border-purple-500/30 text-purple-500'}`}>{ex.daysLeft}d</div>
+                                <div className={`text-[11px] font-black px-4 py-2 rounded-full border shadow-inner ml-4 ${ex.daysLeft < 10 ? 'bg-red-500/10 border-red-500/30 text-red-500 animate-pulse' : 'bg-purple-500/10 border-purple-500/30 text-purple-500'}`}>{ex.daysLeft}d</div>
                             </div>
                         ))}
                     </div>
@@ -438,7 +467,7 @@ const App = () => {
             {/* COLUMN 2: CENTER OPERATIONS (8/12) */}
             <div className="lg:col-span-8 space-y-12">
                 
-                {/* FOCUS ENGINE (VERTICAL HUB) */}
+                {/* FOCUS ENGINE (VERTICAL DESIGN) */}
                 <section className={`p-10 rounded-[5rem] border glass shadow-2xl flex items-center justify-between gap-12 w-full relative overflow-hidden group ${isGymMode ? 'border-purple-500/30 shadow-purple-950/30' : 'shadow-blue-950/10'}`}>
                     <div className="flex flex-col gap-6 min-w-[140px] relative z-10">
                         <button onClick={()=>setTimerActive(!timerActive)} className={`w-28 h-28 rounded-[3rem] flex items-center justify-center transition-all active:scale-90 shadow-[0_0_40px_rgba(0,0,0,0.6)] ${timerActive ? 'bg-red-500/20 text-red-500 border border-red-500/40' : 'bg-blue-600 text-white shadow-blue-900/50'}`}>
@@ -452,7 +481,7 @@ const App = () => {
                     <div className="relative flex flex-col items-center justify-center flex-1">
                         <svg className="w-80 h-80 transform -rotate-90">
                           <circle cx="160" cy="160" r="140" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-900/50 shadow-inner" />
-                          <circle cx="160" cy="160" r="140" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray="880" strokeDashoffset={880 - (880 * (timeLeft / (selectedDuration * 60)))} strokeLinecap="round" className={`transition-all duration-1000 ${isGymMode ? 'text-purple-600 drop-shadow-[0_0_25px_purple]' : 'text-blue-500 drop-shadow-[0_0_25px_blue]'}`} />
+                          <circle cx="160" cy="160" r="140" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray="880" strokeDashoffset={ringOffset * (880/502)} strokeLinecap="round" className={`transition-all duration-1000 ${isGymMode ? 'text-purple-600 drop-shadow-[0_0_25px_purple]' : 'text-blue-500 drop-shadow-[0_0_25px_blue]'}`} />
                         </svg>
                         <div className="absolute flex flex-col items-center text-center">
                           <p className="text-8xl font-black text-white tracking-tighter leading-none font-mono">{formatTime(timeLeft)}</p>
@@ -463,7 +492,7 @@ const App = () => {
 
                     <div className="flex flex-col gap-4 min-w-[120px] items-end relative z-10">
                         {[15, 25, 45, 60].map(m => (<button key={m} onClick={()=>updateTimer(m)} className={`h-16 w-24 rounded-[2rem] text-sm font-black uppercase transition-all shadow-xl ${selectedDuration===m && !isCustomTime ? (isGymMode ? 'bg-purple-600 text-white shadow-purple-900/50' : 'bg-blue-600 text-white shadow-blue-900/50') : 'glass text-slate-500 hover:text-white border border-white/5'}`}>{m}m</button>))}
-                        <button onClick={()=>setIsCustomTime(!isCustomTime)} className={`h-16 w-24 rounded-[2rem] glass transition-all shadow-xl flex items-center justify-center ${isCustomTime ? (isGymMode ? 'bg-purple-600 text-white' : 'bg-indigo-600 text-white') : 'text-slate-500 hover:text-white border border-white/5'}`}><Settings2 size={28}/></button>
+                        <button onClick={()=>setIsCustomTime(!isCustomTime)} className={`h-16 w-24 rounded-[2rem] glass transition-all shadow-xl flex items-center justify-center ${isCustomTime ? 'bg-purple-600 text-white' : 'bg-indigo-600 text-white') : 'text-slate-500 hover:text-white border border-white/5'}`}><Settings2 size={28}/></button>
                     </div>
                 </section>
 
@@ -507,7 +536,7 @@ const App = () => {
                                     <p className={`text-4xl md:text-5xl font-black tracking-tighter truncate leading-tight ${task.completed ? 'line-through text-slate-500 italic' : 'text-slate-100 italic'}`}>{String(task.text)}</p>
                                     <div className="flex items-center justify-end gap-6 mt-6">
                                         <span className={`text-[12px] font-black uppercase tracking-[0.4em] px-5 py-2 rounded-full border shadow-sm ${isGymMode ? 'bg-purple-500/5 border-purple-500/10 text-purple-900' : 'bg-slate-800/50 border-white/5 text-slate-600'}`}>{String(d.slots[task.slot] || "Grind")}</span>
-                                        {task.frequency !== 'none' && <span className="text-[12px] font-black uppercase italic bg-blue-500/10 text-blue-500 px-5 py-2 rounded-full border border-blue-500/20 shadow-sm">{String(d.freq[task.frequency])}</span>}
+                                        {task.frequency !== 'none' && <span className={`text-[12px] font-black uppercase italic bg-blue-500/10 text-blue-500 px-5 py-2 rounded-full border border-blue-500/20 shadow-sm`}>{String(d.freq[task.frequency])}</span>}
                                     </div>
                                   </div>
                                 </div>
@@ -519,11 +548,11 @@ const App = () => {
             </div>
         </main>
 
-        {/* THE SOVEREIGN SIGNATURE */}
-        <footer className="mt-80 border-t border-white/5 pt-24 flex flex-col md:flex-row justify-between items-center gap-16 px-16 pb-32 opacity-40 hover:opacity-100 transition-all duration-1000 text-right">
+        {/* SIGNATURE FOOTER */}
+        <footer className="mt-80 border-t border-white/5 pt-24 flex flex-col md:flex-row justify-between items-center gap-16 px-16 pb-40 opacity-40 hover:opacity-100 transition-all duration-1000 text-right">
             <div className="flex flex-col gap-3">
-              <p className="text-[16px] font-black tracking-[1em] text-slate-500 uppercase italic">V49.0 SOVEREIGN MASTER BUILD</p>
-              <p className="text-[11px] font-black text-slate-700 uppercase tracking-[0.5em]">ALPHA CORE INTELLIGENCE • DISCIPLINE EQUALS FREEDOM</p>
+              <p className="text-[16px] font-black tracking-[1em] text-slate-500 uppercase italic">V50.0 SOVEREIGN MASTER BUILD</p>
+              <p className="text-[11px] font-black text-slate-700 uppercase tracking-[0.5em]">ZUJ AI CORE • DISCIPLINE EQUALS FREEDOM</p>
             </div>
             <div className="flex flex-col items-center md:items-end gap-1.5 text-right leading-none group">
                 <p className="text-[12px] font-black uppercase text-slate-600 mb-4 italic tracking-widest group-hover:text-blue-500 transition-colors">DESIGNED & OPTIMIZED BY</p>
@@ -535,7 +564,7 @@ const App = () => {
         </footer>
       </div>
 
-      {/* MODALS */}
+      {/* AURA MODAL */}
       {showAuraInfo && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 text-right">
            <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-3xl" onClick={() => setShowAuraInfo(false)}></div>
@@ -553,6 +582,7 @@ const App = () => {
         </div>
       )}
 
+      {/* CORE SETTINGS MODAL */}
       {showSettings && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 text-right">
               <div className="absolute inset-0 bg-slate-950/98 backdrop-blur-3xl" onClick={() => setShowSettings(false)}></div>
