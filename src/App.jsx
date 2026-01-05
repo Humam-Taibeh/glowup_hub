@@ -17,11 +17,12 @@ import {
   CalendarDays, ZapOff, Utensils, LayoutGrid, Loader2, Award, Zap as Bolt, 
   BarChart3, Binary, ShieldAlert, Fingerprint, Mail, Lock, ArrowRightCircle, 
   ShieldCheck, Droplets, Info, FastForward, Edit3, Filter, Trash, AlertCircle, PlusCircle,
-  Terminal
+  Terminal, Share2
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// ملاحظة لـ همام: في مشروعك الحقيقي على Vercel، تأكد من وجود السطر التالي في App.jsx أو main.jsx:
-// import './index.css';
+// ملاحظة لـ همام: تأكد من تنصيب framer-motion في مشروعك: npm install framer-motion
+// وتأكد من وجود import './index.css'; في main.jsx
 
 // ==========================================
 // SECTION 1: FIREBASE CORE LOGIC (Safe Env Handling)
@@ -136,8 +137,9 @@ const App = () => {
     setUser(mockUser);
     setProfile({ name: "Humam (Dev Mode)", aura: 500, lang: "ar_jo", streak: 5, lastLogin: new Date().toISOString() });
     setTasks([
-      { id: 'dev1', text: 'اختبار واجهة المستخدم العامة', status: 'todo', emoji: '⚙️' },
-      { id: 'dev2', text: 'تجربة إضافة المهام التجريبية', status: 'doing', emoji: '🔴' }
+      { id: 'dev1', text: 'فحص الترتيب الجديد (7xl)', status: 'todo', emoji: '⚙️' },
+      { id: 'dev2', text: 'تجربة أنيميشن Framer Motion', status: 'doing', emoji: '🔴' },
+      { id: 'dev3', text: 'فحص توافق الأيقونات مع الحجم', status: 'done', emoji: '📐' }
     ]);
   };
 
@@ -208,10 +210,10 @@ const App = () => {
             <div className="w-20 h-20 bg-red-600/10 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-red-500/10">
               <Rocket size={40} className="text-red-600 animate-bounce" />
             </div>
-            <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">GlowUp <span className="text-red-600">Omni</span></h1>
+            <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">GlowUp <span className="text-red-600">Omni</span></h1>
           </div>
           {isSetup ? (
-            <div className="space-y-6 animate-in zoom-in-95">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6">
               <p className="text-zinc-400 font-bold text-center">أهلاً بك! ما هو الاسم الذي تود استخدامه في بروفايلك؟</p>
               <input 
                 autoFocus type="text" placeholder={t.identity_placeholder} 
@@ -219,7 +221,7 @@ const App = () => {
                 onChange={(e)=>setTempName(e.target.value)} 
               />
               <button onClick={handleIdentitySave} className="w-full bg-red-600 py-6 rounded-2xl font-black text-white shadow-xl active:scale-95 transition-all uppercase tracking-widest text-lg">تثبيت الهوية ⚡</button>
-            </div>
+            </motion.div>
           ) : (
             <div className="space-y-6">
               <form onSubmit={async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, email, password); } catch(err) { setAuthError("بياناتك غير صحيحة! ⚠️"); } }} className="space-y-4">
@@ -240,60 +242,112 @@ const App = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#020000] text-white p-4 md:p-8 font-sans" dir={profile.lang === 'ar_jo' ? 'rtl' : 'ltr'}>
-      <div className="max-w-6xl mx-auto space-y-10">
-        <header className="flex flex-col md:flex-row justify-between items-start gap-8 animate-in slide-in-from-top-10 duration-700">
-          <div className="space-y-4 flex-1">
-            <h1 className="text-6xl md:text-8xl font-black italic tracking-tighter leading-none">
+    <div className="min-h-screen bg-[#020000] text-white p-4 md:p-12 font-sans relative overflow-x-hidden" dir={profile.lang === 'ar_jo' ? 'rtl' : 'ltr'}>
+      {/* SECTION: Red Spirit Background Gradient */}
+      <div className="fixed inset-0 pointer-events-none -z-20 bg-gradient-to-tr from-red-600/[0.05] via-transparent to-red-600/[0.02]"></div>
+      
+      <div className="max-w-7xl mx-auto space-y-16">
+        {/* SECTION: POLISHED HEADER */}
+        <header className="flex flex-col xl:flex-row justify-between items-start gap-12 animate-in slide-in-from-top-10 duration-1000">
+          <div className="space-y-6 flex-1">
+            <motion.h1 
+              initial={{ opacity: 0, x: -20 }} 
+              animate={{ opacity: 1, x: 0 }}
+              className="text-7xl md:text-8xl lg:text-9xl font-black italic tracking-tighter leading-none drop-shadow-[0_5px_15px_rgba(220,38,38,0.2)]"
+            >
               {t.welcome.replace('{name}', '')} 
-              <span className="text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,0.5)] uppercase"> {profile.name}</span>
-            </h1>
-            <div className="flex items-center gap-5 bg-zinc-900/50 p-6 rounded-[2.5rem] border border-red-900/20 max-w-2xl group">
-              <Bot size={32} className="text-red-600 group-hover:animate-pulse" />
-              <div className="flex-1 overflow-hidden">
-                <p className="text-lg font-black italic leading-tight truncate">{aiAdvice || "Locked in and ready, Humam. 🦾"}</p>
+              <span className="text-red-600 drop-shadow-[0_0_30px_rgba(220,38,38,0.6)] uppercase block md:inline"> {profile.name}</span>
+            </motion.h1>
+            
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="flex items-center gap-6 bg-zinc-900/40 p-8 rounded-[3rem] border border-red-900/20 max-w-3xl group shadow-2xl backdrop-blur-md"
+            >
+              <div className="p-4 bg-red-600/10 rounded-2xl">
+                <Bot size={36} className="text-red-600 group-hover:animate-pulse" />
               </div>
-              <button onClick={getAiAdvice} disabled={isAiLoading} className="p-3 bg-red-600/10 rounded-xl hover:rotate-180 transition-all shadow-lg">
-                {isAiLoading ? <Loader2 className="animate-spin" size={18}/> : <RefreshCw size={18}/>}
+              <div className="flex-1 overflow-hidden">
+                <p className="text-xl md:text-2xl font-black italic leading-tight text-slate-100 italic">{aiAdvice || "Locked in and ready, Humam. 🦾"}</p>
+                <p className="text-[10px] font-black uppercase text-zinc-600 mt-2 tracking-[0.4em]">{t.yo}</p>
+              </div>
+              <button onClick={getAiAdvice} disabled={isAiLoading} className="p-4 bg-red-600/10 rounded-2xl hover:rotate-180 transition-all shadow-lg active:scale-90">
+                {isAiLoading ? <Loader2 className="animate-spin" size={24}/> : <RefreshCw size={24} className="text-red-500" />}
               </button>
-            </div>
+            </motion.div>
           </div>
-          <div className="flex gap-4">
-             <div className="bg-zinc-900/40 p-8 rounded-[2.5rem] border border-red-900/20 text-center shadow-2xl backdrop-blur-md min-w-[140px]">
-                <Flame size={32} className={profile.streak > 0 ? "text-orange-500 animate-pulse mx-auto" : "text-zinc-700 mx-auto"} />
-                <p className="text-4xl font-black mt-2">{profile.streak || 0}</p>
-                <p className="text-[10px] font-bold uppercase text-zinc-600 tracking-widest leading-none">The Streak</p>
+
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex gap-6 self-end xl:self-start"
+          >
+             <div className="bg-zinc-900/40 p-10 rounded-[3.5rem] border border-red-900/20 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-md min-w-[180px] group transition-all hover:border-red-600/40">
+                <Flame size={48} className={profile.streak > 0 ? "text-orange-500 animate-pulse mx-auto" : "text-zinc-700 mx-auto group-hover:text-red-500 transition-colors"} />
+                <p className="text-6xl font-black mt-4">{profile.streak || 0}</p>
+                <p className="text-[11px] font-bold uppercase text-zinc-600 tracking-[0.4em] mt-2">The Streak</p>
              </div>
-             <button onClick={()=>setShowSettings(true)} className="p-10 bg-zinc-900/40 border border-red-900/20 rounded-[3rem] text-zinc-500 hover:text-red-500 transition-all shadow-xl active:scale-90"><Settings size={40} /></button>
-          </div>
+             <button onClick={()=>setShowSettings(true)} className="p-12 bg-zinc-900/40 border border-red-900/20 rounded-[3.5rem] text-zinc-500 hover:text-red-500 transition-all shadow-xl active:scale-90 hover:rotate-90 duration-700">
+                <Settings size={48} />
+             </button>
+          </motion.div>
         </header>
 
-        <section className="bg-zinc-900/40 p-6 rounded-[3.5rem] border border-red-900/20 shadow-2xl backdrop-blur-2xl">
-          <div className="flex gap-4 items-center">
-            <div className="flex-1 flex items-center px-10 bg-black/60 rounded-[3rem] border border-red-900/10 min-h-[90px] w-full">
-              <PlusCircle size={32} className="text-zinc-700 ml-4" />
-              <input value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)} placeholder={t.add_task} className="bg-transparent flex-1 text-2xl font-black text-white outline-none py-6" />
+        {/* SECTION: POLISHED TASK ADDER */}
+        <section className="bg-zinc-900/30 p-8 rounded-[4.5rem] border border-red-900/10 shadow-2xl backdrop-blur-3xl focus-within:ring-8 ring-red-600/5 transition-all">
+          <div className="flex flex-col lg:flex-row gap-8 items-center">
+            <div className="flex-1 flex items-center px-12 bg-black/60 rounded-[3.5rem] border border-red-900/10 min-h-[110px] w-full group focus-within:border-red-600/40 transition-all shadow-inner">
+              <PlusCircle size={40} className="text-zinc-800 group-focus-within:text-red-600 transition-colors ml-6" />
+              <input 
+                value={newTaskText} 
+                onChange={(e)=>setNewTaskText(e.target.value)} 
+                placeholder={t.add_task} 
+                className="bg-transparent flex-1 text-3xl font-black text-white outline-none py-8 placeholder:text-zinc-900 tracking-tight" 
+              />
             </div>
-            <button onClick={handleAddTask} className="bg-red-600 px-16 py-8 rounded-[2.5rem] font-black text-xl shadow-xl active:scale-95 transition-all text-white uppercase">{t.yo.split(' ')[0]}</button>
+            <button 
+              onClick={handleAddTask} 
+              className="w-full lg:w-auto px-20 py-10 rounded-[3.5rem] bg-red-600 hover:bg-red-500 font-black text-2xl shadow-[0_15px_30px_rgba(220,38,38,0.3)] active:scale-95 transition-all text-white uppercase tracking-widest border-b-8 border-red-800"
+            >
+              {t.yo.split(' ')[0]} ⚡
+            </button>
           </div>
         </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-40">
+        {/* SECTION: POLISHED DYNAMIC GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 pb-40">
+           <AnimatePresence mode='popLayout'>
            {tasks.length === 0 ? (
-             <div className="col-span-full py-40 text-center border-4 border-dashed border-red-900/10 rounded-[4rem] opacity-20 flex flex-col items-center gap-6">
-                <ZapOff size={80} />
-                <p className="text-4xl font-black italic tracking-widest uppercase">Protocol Clear. Start adding goals.</p>
-             </div>
-           ) : tasks.map(tk => (
-             <div key={tk.id} className={`group p-8 rounded-[3rem] border transition-all duration-500 ${tk.status === 'done' ? 'opacity-30 grayscale' : 'bg-zinc-900/60 border-red-900/20 shadow-2xl hover:scale-[1.02]'}`}>
-                <div className="flex justify-between items-start mb-6">
-                   <div className="w-16 h-16 bg-black/40 rounded-2xl flex items-center justify-center text-4xl shadow-inner">{tk.emoji || "✨"}</div>
-                   <button onClick={async ()=> { 
-                      if(user.isDemo) { setTasks(tasks.filter(t=>t.id!==tk.id)); return; } 
-                      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', tk.id)); 
-                   }} className="opacity-0 group-hover:opacity-100 p-3 text-zinc-700 hover:text-red-500 transition-all"><Trash size={20}/></button>
+             <motion.div 
+               key="empty"
+               initial={{ opacity: 0 }} animate={{ opacity: 0.2 }}
+               className="col-span-full py-48 text-center border-8 border-dashed border-red-900/5 rounded-[5rem] flex flex-col items-center gap-10"
+             >
+                <ZapOff size={120} className="text-zinc-800" />
+                <p className="text-5xl font-black italic tracking-widest uppercase text-zinc-700">Protocol Clear. Feed the System.</p>
+             </motion.div>
+           ) : tasks.map((tk, index) => (
+             <motion.div 
+                key={tk.id}
+                layout
+                initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+                transition={{ duration: 0.4, delay: index * 0.05 }}
+                className={`group relative p-10 rounded-[4rem] border transition-all duration-700 ${tk.status === 'done' ? 'opacity-30 grayscale' : 'bg-zinc-900/60 border-red-900/20 shadow-2xl hover:scale-[1.03] hover:border-red-600/30'}`}
+             >
+                <div className="flex justify-between items-start mb-10">
+                   <div className="w-20 h-20 bg-black/40 rounded-3xl flex items-center justify-center text-5xl shadow-inner border border-red-900/10 group-hover:scale-110 transition-transform duration-500">{tk.emoji || "✨"}</div>
+                   <div className="flex gap-2">
+                      <button onClick={async ()=> { 
+                          if(user.isDemo) { setTasks(tasks.filter(t=>t.id!==tk.id)); return; } 
+                          await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', tk.id)); 
+                       }} className="opacity-0 group-hover:opacity-100 p-4 text-zinc-700 hover:text-red-500 transition-all hover:bg-red-500/10 rounded-2xl"><Trash2 size={28}/></button>
+                   </div>
                 </div>
-                <h3 className={`text-2xl font-black tracking-tight leading-snug mb-10 ${tk.status === 'done' ? 'line-through opacity-50' : ''}`}>{tk.text}</h3>
+                <h3 className={`text-3xl font-black tracking-tight leading-snug mb-12 h-24 overflow-hidden ${tk.status === 'done' ? 'line-through opacity-50' : 'text-slate-100'}`}>{tk.text}</h3>
+                
                 <button 
                   onClick={async () => {
                     const seq = ['todo', 'doing', 'done', 'missed'];
@@ -305,63 +359,88 @@ const App = () => {
                       await updateDoc(pRef, { aura: (profile.aura || 0) + 10 });
                     }
                   }}
-                  className={`w-full py-6 rounded-2xl font-black text-[10px] uppercase tracking-[0.4em] transition-all shadow-lg ${tk.status === 'done' ? 'bg-emerald-600' : tk.status === 'doing' ? 'bg-orange-600 animate-pulse' : tk.status === 'missed' ? 'bg-red-900' : 'bg-zinc-800'}`}
+                  className={`w-full py-7 rounded-3xl font-black text-xs uppercase tracking-[0.5em] transition-all shadow-xl ${tk.status === 'done' ? 'bg-emerald-600 shadow-emerald-900/40' : tk.status === 'doing' ? 'bg-orange-600 animate-pulse shadow-orange-900/40' : tk.status === 'missed' ? 'bg-red-900 shadow-red-950/50' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400'}`}
                 >
                    {t.status[tk.status]}
                 </button>
-             </div>
+             </motion.div>
            ))}
+           </AnimatePresence>
         </div>
 
+        {/* SECTION: POLISHED SETTINGS */}
+        <AnimatePresence>
         {showSettings && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 text-right" dir="rtl">
-            <div className="absolute inset-0 bg-black/95 backdrop-blur-3xl" onClick={()=>setShowSettings(false)}></div>
-            <div className="relative w-full max-w-xl bg-zinc-900 border border-red-900/30 p-12 rounded-[4rem] shadow-2xl animate-in zoom-in-95">
-               <button onClick={()=>setShowSettings(false)} className="absolute top-10 right-10 text-zinc-600 hover:text-white"><X size={32}/></button>
-               <h2 className="text-4xl font-black italic mb-10 flex items-center gap-4 text-red-600"><Settings2/> الإعدادات</h2>
-               <div className="space-y-12">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest block italic">لغة النظام</label>
-                    <div className="grid grid-cols-2 gap-3">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/98 backdrop-blur-3xl" onClick={()=>setShowSettings(false)}></motion.div>
+            <motion.div 
+              initial={{ opacity: 0, y: 50, scale: 0.9 }} 
+              animate={{ opacity: 1, y: 0, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative w-full max-w-2xl bg-zinc-900 border border-red-900/30 p-16 rounded-[5rem] shadow-2xl"
+            >
+               <button onClick={()=>setShowSettings(false)} className="absolute top-12 left-12 text-zinc-600 hover:text-white transition-colors p-2"><X size={40}/></button>
+               <h2 className="text-5xl font-black italic mb-16 flex items-center gap-6 text-red-600"><Settings2 size={48}/> الإعدادات</h2>
+               <div className="space-y-16">
+                  <div className="space-y-6">
+                    <label className="text-xs font-black uppercase text-zinc-500 tracking-[0.4em] block italic">لغة البروتوكول</label>
+                    <div className="grid grid-cols-2 gap-4">
                        {Object.entries(LANGUAGES).map(([key, value]) => (
                          <button key={key} onClick={async ()=> {
                             if (user.isDemo) { setProfile({...profile, lang: key}); return; }
                             const pRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
                             await updateDoc(pRef, { lang: key });
-                         }} className={`p-5 rounded-2xl font-black text-xs transition-all ${profile.lang === key ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-500'}`}>{key.toUpperCase()}</button>
+                         }} className={`p-6 rounded-[2rem] font-black text-sm transition-all border-2 ${profile.lang === key ? 'bg-red-600 border-red-400 text-white shadow-red-900/40' : 'bg-zinc-800 border-transparent text-zinc-500'}`}>{key.toUpperCase()}</button>
                        ))}
                     </div>
                   </div>
-                  <div className="pt-10 border-t border-zinc-800">
-                     <button onClick={async ()=>{ if(user.isDemo) { window.location.reload(); return; } await signOut(auth); }} className="w-full py-8 bg-red-600/10 border border-red-600/20 text-red-500 rounded-3xl font-black uppercase tracking-[0.5em] transition-all hover:bg-red-600 hover:text-white">Sign Out Protocol</button>
+                  <div className="pt-12 border-t border-zinc-800">
+                     <button onClick={async ()=>{ if(user.isDemo) { window.location.reload(); return; } await signOut(auth); }} className="w-full py-10 bg-red-600/10 border-2 border-red-600/20 text-red-500 rounded-[2.5rem] font-black uppercase tracking-[0.6em] transition-all hover:bg-red-600 hover:text-white shadow-2xl active:scale-95">Sign Out Protocol</button>
                   </div>
                </div>
-            </div>
+            </motion.div>
           </div>
         )}
+        </AnimatePresence>
 
-        <footer className="mt-28 pt-20 border-t border-red-900/10 flex flex-col md:flex-row justify-between items-center gap-12 px-10 pb-24 opacity-30 hover:opacity-100 transition-all duration-1000 group">
-          <div className="flex flex-col items-center md:items-start gap-2">
-             <div className="flex items-center gap-3"><Rocket size={24} className="text-red-600" /><p className="text-[12px] font-black tracking-[0.6em] text-zinc-500 uppercase italic">GlowUp Omni Absolute</p></div>
-             <p className="text-[14px] font-black text-zinc-400 uppercase italic tracking-widest mt-2 leading-none">Operational Build V43.2 • Secure Sync Active</p>
+        {/* SECTION: FOOTER MASTERPIECE */}
+        <footer className="mt-40 pt-24 border-t border-red-900/10 flex flex-col xl:flex-row justify-between items-center gap-16 px-10 pb-32 opacity-30 hover:opacity-100 transition-all duration-1000 group">
+          <div className="flex flex-col items-center xl:items-start gap-4">
+             <div className="flex items-center gap-5">
+               <div className="p-3 bg-red-600/10 rounded-xl group-hover:bg-red-600/20 transition-colors"><Rocket size={32} className="text-red-600" /></div>
+               <p className="text-sm font-black tracking-[0.8em] text-zinc-500 uppercase italic leading-none">GlowUp Omni Absolute</p>
+             </div>
+             <p className="text-base font-black text-zinc-400 uppercase italic tracking-[0.3em] mt-2 leading-none">Build V43.2.1 • © 2026 Sovereign Sync</p>
           </div>
-          <div className="flex flex-col items-center md:items-end gap-2 text-right">
-             <div className="flex items-center gap-2 opacity-30 mb-1"><ShieldCheck size={14} /><p className="text-[8px] font-black uppercase tracking-[0.3em]">Encrypted & Engineered For Excellence</p></div>
-             <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.6em] mb-2 leading-none">Developed By</p>
-             <p className="text-5xl font-black tracking-[0.4em] uppercase italic leading-none transition-all duration-1000 text-white group-hover:text-red-600 group-hover:drop-shadow-[0_0_15px_red]">HUMAM TAIBEH 🦾</p>
+          <div className="flex flex-col items-center xl:items-end gap-4 text-right">
+             <div className="flex items-center gap-3 opacity-30 mb-2">
+               <ShieldCheck size={18} />
+               <p className="text-[10px] font-black uppercase tracking-[0.5em]">Encrypted & Engineered For Excellence</p>
+             </div>
+             <p className="text-[12px] font-black text-zinc-700 uppercase tracking-[0.8em] mb-2 leading-none">Architected By</p>
+             <div className="relative overflow-hidden">
+                <p className="text-7xl font-black tracking-[0.3em] uppercase italic leading-none transition-all duration-1000 text-white group-hover:text-red-600 group-hover:drop-shadow-[0_0_25px_red]">HUMAM TAIBEH 🦾</p>
+                <motion.div className="absolute bottom-0 left-0 w-full h-1 bg-red-600" initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} transition={{ duration: 1 }} />
+             </div>
           </div>
         </footer>
       </div>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;400;700;900&display=swap');
-        :root { font-family: 'Tajawal', sans-serif; scroll-behavior: smooth; }
+        :root { font-family: 'Tajawal', sans-serif; scroll-behavior: smooth; color-scheme: dark; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
         .animate-shake { animation: shake 0.3s ease-in-out infinite; }
-        .animate-in { animation: fade-in-up 0.6s ease-out; }
-        @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        ::selection { background: rgba(220, 38, 38, 0.4); color: white; }
+        
+        @keyframes heat-rise {
+          0% { transform: translateY(0) scaleY(1); opacity: 0.1; }
+          50% { transform: translateY(-40px) scaleY(1.2); opacity: 0.25; }
+          100% { transform: translateY(-80px) scaleY(1.4); opacity: 0; }
+        }
+        .animate-heat-rise { animation: heat-rise 4s infinite ease-out; }
       `}</style>
     </div>
   );
