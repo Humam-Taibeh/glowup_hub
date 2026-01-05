@@ -4,12 +4,20 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GlowUp Hub | Humam Taibeh</title>
+    <title>GlowUp Omni | Humam Taibeh</title>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@200;400;700;900&display=swap" rel="stylesheet">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+      /* منع ظهور الـ Scrollbar أثناء الـ Booting */
+      body { margin: 0; background: #050505; overflow-x: hidden; }
+      #root { min-height: 100vh; }
+    </style>
   </head>
-  <body class="bg-[#020000] text-white">
+  <body class="bg-[#050505] text-white selection:bg-red-600/30">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
