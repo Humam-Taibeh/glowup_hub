@@ -18,9 +18,9 @@ import {
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 
 // ==========================================
-// SECTION 1: GLOBAL INITIALIZATION
+// SECTION 1: GLOBAL INITIALIZATION (HARD-WIRED)
 // ==========================================
-console.log("[SYSTEM] Absolute Engine Handshake Initialized...");
+console.log("[SYSTEM] Absolute Engine Booting...");
 
 const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 const firebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -125,6 +125,19 @@ const App = () => {
   const glowX = useSpring(useTransform(mouseX, [0, 1920], [-50, 50]), { stiffness: 50, damping: 30 });
   const glowY = useSpring(useTransform(mouseY, [0, 1080], [-50, 50]), { stiffness: 50, damping: 30 });
 
+  // BOOTSTRAP EMERGENCY PROTOCOL: Fail-safe after 5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        if (isLoading || authChecking) {
+            console.warn("[SYSTEM] Bootstrap Timeout. Forcing Render.");
+            setIsLoading(false);
+            setAuthChecking(false);
+        }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isLoading, authChecking]);
+
+  // SAFE TRANSLATIONS ENGINE (Zero-Crash Fallback)
   const currentLang = profile?.lang || "ar_jo";
   const t = LANGUAGES[currentLang] || LANGUAGES.ar_jo;
   const isArabic = currentLang.startsWith('ar');
@@ -133,7 +146,7 @@ const App = () => {
     small: { text: 'text-xs', welcome: 'text-4xl md:text-5xl', icon: 18, cardP: 'p-4' },
     default: { text: 'text-sm', welcome: 'text-6xl md:text-7xl', icon: 24, cardP: 'p-5' },
     large: { text: 'text-base', welcome: 'text-7xl md:text-8xl', icon: 30, cardP: 'p-6' }
-  }[profile?.uiScale || 'default'];
+  }[profile?.uiScale || 'default'] || { text: 'text-sm', welcome: 'text-6xl', icon: 24, cardP: 'p-5' };
 
   // AI Quote Engine
   useEffect(() => {
@@ -145,17 +158,8 @@ const App = () => {
     return () => clearInterval(interval);
   }, [isArabic]);
 
-  // Auth Effect with Handshake Fail-safe
+  // Auth Effect
   useEffect(() => {
-    console.log("[AUTH] Initiating Handshake...");
-    const bootTimeout = setTimeout(() => {
-      if (authChecking) {
-        console.warn("[AUTH] Boot timeout triggered. Forcing UI Ready.");
-        setAuthChecking(false);
-        setIsLoading(false);
-      }
-    }, 5000);
-
     const initAuth = async () => {
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -163,46 +167,28 @@ const App = () => {
         } else {
           await signInAnonymously(auth);
         }
-      } catch (e) {
-        console.error("[AUTH] Rejection:", e);
-      } finally {
-        setAuthChecking(false);
-        clearTimeout(bootTimeout);
-      }
+      } catch (e) { console.error(e); }
+      finally { setAuthChecking(false); }
     };
     initAuth();
-    
-    const unsub = onAuthStateChanged(auth, (u) => { 
-      setUser(u);
-      if(u) console.log("[AUTH] User Identity Validated:", u.uid);
-    });
-
-    const handleMouseMove = (e) => {
-      mouseX.set(e.clientX);
-      mouseY.set(e.clientY);
-    };
+    const unsub = onAuthStateChanged(auth, setUser);
+    const handleMouseMove = (e) => { mouseX.set(e.clientX); mouseY.set(e.clientY); };
     window.addEventListener('mousemove', handleMouseMove);
-    return () => { unsub(); window.removeEventListener('mousemove', handleMouseMove); clearTimeout(bootTimeout); };
-  }, []);
+    return () => { unsub(); window.removeEventListener('mousemove', handleMouseMove); };
+  }, [mouseX, mouseY]);
 
   // Sync Logic
   useEffect(() => {
     if (!user || authChecking) return;
-    console.log("[DATA] Commencing Secure Sync...");
-
-    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
-    const unsubP = onSnapshot(profileRef, (snap) => {
+    const pRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
+    const unsubP = onSnapshot(pRef, (snap) => {
       if (snap.exists()) {
         setProfile(snap.data());
-        console.log("[DATA] Profile Synced.");
       } else {
-        setProfile({ name: "" }); // Trigger setup
+        setProfile({ name: "" }); 
       }
       setIsLoading(false);
-    }, (err) => {
-      console.error("[DATA] Sync Guard Error:", err);
-      setIsLoading(false);
-    });
+    }, (err) => { setIsLoading(false); });
 
     const tasksCol = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
     const unsubT = onSnapshot(tasksCol, (snap) => {
@@ -227,8 +213,7 @@ const App = () => {
 
   const updateStatus = async (tk) => {
     if (!user || !tk) return;
-    const seq = ['todo', 'doing', 'done', 'missed'];
-    const next = seq[(seq.indexOf(tk.status) + 1) % 4];
+    const next = ['todo', 'doing', 'done', 'missed'][(['todo', 'doing', 'done', 'missed'].indexOf(tk.status) + 1) % 4];
     await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', tk.id), { status: next, completed: next === 'done' });
   };
 
@@ -303,7 +288,7 @@ const App = () => {
            <div className="flex-1 bg-white/[0.02] p-4 rounded-[3rem] border-[0.5px] border-white/10 shadow-2xl backdrop-blur-3xl focus-within:ring-1 ring-red-600/10 transition-all glass-noise">
               <div className="flex items-center gap-4 px-4">
                  <Plus size={24} className="text-zinc-800" />
-                 <input value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && handleAddTask()} placeholder={String(t?.add_task)} className="bg-transparent flex-1 text-lg font-bold text-white outline-none py-4" />
+                 <input value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && handleAddTask()} placeholder={String(t?.add_task || "What's next?")} className="bg-transparent flex-1 text-lg font-bold text-white outline-none py-4" />
                  <div className="flex gap-2 bg-black/40 rounded-2xl p-1">
                     {['morning', 'day', 'night'].map(sl => (<button key={sl} onClick={()=>setNewTaskSlot(sl)} className={`p-3 rounded-xl transition-all ${newTaskSlot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700'}`}>{sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}</button>))}
                  </div>
@@ -335,7 +320,7 @@ const App = () => {
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4"><LanguagesIcon size={20} className="text-red-600" /><label className="text-[10px] font-black uppercase tracking-[0.5em] block italic">System Tone</label></div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{SYSTEM_LANGS.map(lang => (<button key={lang.id} onClick={async () => { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${currentLang === lang.id ? 'border-red-600 text-white bg-red-600/5' : 'border-white/5 text-zinc-700 bg-white/[0.01]'}`}><span>{String(lang.label)}</span>{currentLang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}</button>))}</div>
                     </div>
-                    <button onClick={async ()=>{ await signOut(auth); window.location.reload(); }} className="w-full py-8 bg-zinc-950 border-[0.5px] border-red-600/20 text-red-500 rounded-3xl font-black uppercase tracking-[0.5em] shadow-xl hover:bg-red-600 hover:text-white transition-all leading-none">End Session</button>
+                    <button onClick={async ()=>{ await signOut(auth); window.location.reload(); }} className="w-full py-8 bg-zinc-950 border-[0.5px] border-red-600/20 text-red-500 rounded-3xl font-black uppercase tracking-[0.5em] shadow-xl hover:bg-red-600 hover:text-white transition-all active:scale-95 leading-none">End Session</button>
                   </div>
                </div>
             </motion.div>
@@ -343,6 +328,7 @@ const App = () => {
         )}
         </AnimatePresence>
 
+        {/* ULTRA MINIMALIST FOOTER (HUMAM TAIBEH SIGNATURE) */}
         <footer className="mt-64 pt-24 border-t border-white/5 flex flex-col items-center justify-center px-6 pb-24 opacity-60 gap-16 text-center">
           <div className="w-full flex flex-col md:flex-row justify-between items-center gap-8 text-zinc-800 max-w-5xl">
              <div className="flex items-center gap-2"><Shield size={14} /><p className="text-[8px] font-black uppercase tracking-[0.3em]">Encrypted System • AI Core Active</p></div>
@@ -350,7 +336,9 @@ const App = () => {
           </div>
           <div className="flex flex-col items-center group cursor-default">
              <div className="relative">
-                <motion.p transition={{ duration: 0.1 }} whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} className={`text-2xl md:text-3xl font-black tracking-[0.5em] uppercase leading-none text-zinc-900 transition-colors cursor-pointer select-none whitespace-nowrap not-italic`}>HUMAM TAIBEH</motion.p>
+                <motion.p transition={{ duration: 0.1 }} whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} className={`text-2xl md:text-3xl font-black tracking-[0.5em] uppercase leading-none text-zinc-900 transition-colors cursor-pointer select-none whitespace-nowrap not-italic`}>
+                    HUMAM TAIBEH
+                </motion.p>
                 <motion.div initial={{ scaleX: 0 }} whileHover={{ scaleX: 1 }} transition={{ duration: 0.2 }} className="absolute -bottom-4 left-0 w-full h-[1px] bg-red-600 origin-center" />
              </div>
              <p className="text-[7px] font-black text-zinc-900 uppercase tracking-[1.2em] mt-10 opacity-40 uppercase">Sovereign Productivity Engine • © 2026</p>
