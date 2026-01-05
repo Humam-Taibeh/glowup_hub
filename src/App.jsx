@@ -30,7 +30,6 @@ const apiKey = "";
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'glowup_omni_v2';
 
-// Dynamic AI Quote Database
 const AI_QUOTES = {
   ar: [
     "كُن النسخة الأفضل منك اليوم.",
@@ -191,13 +190,13 @@ TaskCard.displayName = "TaskCard";
 // SECTION 3: MAIN APP LOGIC
 // ==========================================
 const App = () => {
+  // --- States ---
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState({ 
-    name: "", aura: 0, lang: "ar_jo", streak: 0, lastLogin: "", 
-    waterLevel: 0, uiScale: 'default', lastWaterAmount: 0 
-  });
+  const [profile, setProfile] = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [authChecking, setAuthChecking] = useState(true);
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tempName, setTempName] = useState("");
@@ -218,17 +217,18 @@ const App = () => {
   const glowX = useSpring(useTransform(mouseX, [0, 1920], [-50, 50]), { stiffness: 50, damping: 30 });
   const glowY = useSpring(useTransform(mouseY, [0, 1080], [-50, 50]), { stiffness: 50, damping: 30 });
 
-  const t = LANGUAGES[profile.lang] || LANGUAGES.ar_jo;
-  const isArabic = profile.lang.startsWith('ar');
+  const currentLang = profile?.lang || "ar_jo";
+  const t = LANGUAGES[currentLang];
+  const isArabic = currentLang.startsWith('ar');
 
   const scaleConfig = {
     small: { text: 'text-xs', welcome: 'text-4xl md:text-5xl', icon: 18, cardP: 'p-4' },
     default: { text: 'text-sm', welcome: 'text-6xl md:text-7xl', icon: 24, cardP: 'p-5' },
     large: { text: 'text-base', welcome: 'text-7xl md:text-8xl', icon: 30, cardP: 'p-6' }
   };
-  const s = scaleConfig[profile.uiScale || 'default'];
+  const s = scaleConfig[profile?.uiScale || 'default'];
 
-  // AI Quote Engine
+  // --- AI Quote Logic ---
   useEffect(() => {
     const langKey = isArabic ? 'ar' : 'en';
     const quotes = AI_QUOTES[langKey];
@@ -237,9 +237,9 @@ const App = () => {
       setAiAdvice(quotes[Math.floor(Math.random() * quotes.length)]);
     }, 12000);
     return () => clearInterval(interval);
-  }, [profile.lang, isArabic]);
+  }, [currentLang, isArabic]);
 
-  // Sync Logic
+  // --- Authentication Handler ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -248,12 +248,18 @@ const App = () => {
         } else {
           await signInAnonymously(auth);
         }
-      } catch (e) { }
-      finally { setAuthChecking(false); }
+      } catch (e) {
+        console.error("Auth Error:", e);
+      } finally {
+        setAuthChecking(false);
+      }
     };
     initAuth();
     
-    const unsub = onAuthStateChanged(auth, setUser);
+    const unsub = onAuthStateChanged(auth, (u) => { 
+      setUser(u);
+    });
+
     const handleMouseMove = (e) => {
       mouseX.set(e.clientX);
       mouseY.set(e.clientY);
@@ -262,13 +268,19 @@ const App = () => {
     return () => { unsub(); window.removeEventListener('mousemove', handleMouseMove); };
   }, [mouseX, mouseY]);
 
+  // --- Data Synchronizer (Firestore Guards) ---
   useEffect(() => {
-    if (!user || user.isDemo || authChecking) return;
-    const pRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
-    const unsubP = onSnapshot(pRef, (snap) => {
+    if (!user || user.isDemo) {
+      if (!authChecking) setIsLoading(false);
+      return;
+    }
+
+    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
+    const unsubP = onSnapshot(profileRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setProfile(prev => ({ ...prev, ...data }));
+        setProfile(data);
+        // Midnight Routine Audit
         const today = new Date().toISOString().split('T')[0];
         if (data.lastLogin !== today) {
             const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
@@ -276,34 +288,44 @@ const App = () => {
             let newStreak = data.streak || 0;
             if (data.lastLogin === yesterdayStr && data.hasDoneTaskToday) newStreak += 1;
             else if (data.lastLogin < yesterdayStr) newStreak = 0;
-            setDoc(pRef, { lastLogin: today, waterLevel: 0, streak: newStreak, hasDoneTaskToday: false }, { merge: true });
+            setDoc(profileRef, { lastLogin: today, waterLevel: 0, streak: newStreak, hasDoneTaskToday: false }, { merge: true });
         }
+      } else {
+        setProfile({ name: "" }); // Trigger setup view
       }
-    }, (err) => { });
-    const tCol = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
-    const unsubT = onSnapshot(tCol, (snap) => {
-      setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => { });
-    return () => { unsubP(); unsubT(); };
-  }, [user, authChecking, appId]);
+      setIsLoading(false);
+    }, (err) => {
+      console.error("Firestore Permission/Error:", err);
+      setIsLoading(false);
+    });
 
+    const tasksCol = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
+    const unsubT = onSnapshot(tasksCol, (snap) => {
+      setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => { console.error("Tasks fetch error:", err); });
+
+    return () => { unsubP(); unsubT(); };
+  }, [user, authChecking]);
+
+  // --- Database Mutators ---
   const addWater = async (ml) => {
     const amount = parseInt(ml);
     if (isNaN(amount) || !user) return;
-    const newLvl = (profile.waterLevel || 0) + amount;
+    const newLvl = (profile?.waterLevel || 0) + amount;
     const updates = { waterLevel: newLvl, lastWaterAmount: amount };
-    if (user.isDemo) { setProfile({...profile, ...updates}); setCustomWater(""); return; }
+    if (user.isDemo) { setProfile(prev => ({...prev, ...updates})); setCustomWater(""); return; }
     await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), updates, { merge: true });
     setCustomWater("");
   };
 
   const updateStatus = async (tk) => {
     if (!user) return;
-    const next = ['todo', 'doing', 'done', 'missed'][(['todo', 'doing', 'done', 'missed'].indexOf(tk.status) + 1) % 4];
+    const seq = ['todo', 'doing', 'done', 'missed'];
+    const next = seq[(seq.indexOf(tk.status) + 1) % 4];
     if (user.isDemo) { setTasks(tasks.map(t => t.id === tk.id ? {...t, status: next} : t)); return; }
     await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', tk.id), { status: next, completed: next === 'done', lastStatusChange: new Date().toISOString() });
     if (next === 'done') {
-        await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { aura: (profile.aura || 0) + 10, hasDoneTaskToday: true }, { merge: true });
+        await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { aura: (profile?.aura || 0) + 10, hasDoneTaskToday: true }, { merge: true });
     }
   };
 
@@ -328,9 +350,23 @@ const App = () => {
     return matchTime && matchStatus;
   });
 
-  if (authChecking) return <div className="h-screen bg-[#050505] flex items-center justify-center text-red-600"><Loader2 className="animate-spin" size={48} /></div>;
+  // --- Premium Loading UI ---
+  if (authChecking || isLoading) {
+    return (
+      <div className="h-screen bg-[#050505] flex flex-col items-center justify-center gap-6">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+        >
+          <Loader2 className="text-red-600" size={48} />
+        </motion.div>
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-800 animate-pulse">Initializing Absolute System</p>
+      </div>
+    );
+  }
 
-  if (!user || (user && !profile.name)) {
+  // --- Onboarding / Auth View ---
+  if (!user || (user && !profile?.name)) {
     return (
       <div className="min-h-screen bg-[#050000] flex items-center justify-center p-6 text-right font-sans" dir="rtl">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.05),transparent_75%)]"></div>
@@ -342,7 +378,7 @@ const App = () => {
           </div>
           {user ? (
              <div className="space-y-6">
-                <input autoFocus type="text" placeholder={String(t.identity_placeholder)} className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 text-center text-2xl font-black text-white outline-none focus:ring-1 ring-red-600/40" onChange={(e)=>setTempName(e.target.value)} />
+                <input autoFocus type="text" placeholder={String(t?.identity_placeholder || "Enter name...")} className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 text-center text-2xl font-black text-white outline-none focus:ring-1 ring-red-600/40" onChange={(e)=>setTempName(e.target.value)} />
                 <button onClick={async () => {
                   if (!tempName.trim()) return;
                   await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { name: String(tempName), aura: 0, lang: 'ar_jo', streak: 0, uiScale: 'default', lastLogin: new Date().toISOString().split('T')[0], hasDoneTaskToday: false, waterLevel: 0 }, { merge: true });
@@ -368,12 +404,12 @@ const App = () => {
       <motion.div style={{ x: glowX, y: glowY }} className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100vw] h-[100vw] bg-red-600/[0.02] blur-[180px] rounded-full pointer-events-none -z-10" />
 
       <div className="max-w-7xl mx-auto space-y-12 pb-40">
-        {/* HEADER ALIGNMENT (Conditional Alignment) */}
+        {/* HEADER SECTION (Language Aware Alignment) */}
         <header className={`flex flex-col md:flex-row items-center justify-between gap-8 pb-10 border-b border-white/5 ${isArabic ? 'text-right' : 'text-left md:items-start'}`}>
           <div className="flex-1 w-full">
             <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className={`${s.welcome} font-black italic tracking-tighter leading-none`}>
-              {String(t.welcome.replace('{name}', ''))} 
-              <span className="text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,0.4)] uppercase font-black"> {String(profile.name)}</span>
+              {String(t?.welcome.replace('{name}', ''))} 
+              <span className="text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,0.4)] uppercase font-black"> {String(profile?.name)}</span>
             </motion.h1>
             <div className={`flex items-center gap-4 mt-4 h-8 overflow-hidden ${isArabic ? 'justify-start' : 'justify-start'}`}>
               <AnimatePresence mode='wait'>
@@ -385,23 +421,26 @@ const App = () => {
           </div>
           <motion.div initial={{ scale: 0.95 }} animate={{ scale: [0.95, 1.05, 0.95] }} transition={{ repeat: Infinity, duration: 4 }} className="flex items-center gap-4 bg-white/[0.01] p-3 md:p-4 rounded-[3rem] border-[0.5px] border-white/10 backdrop-blur-3xl shadow-2xl">
              <div className="flex items-center gap-3 px-8 border-l border-white/5">
-                <Flame size={s.icon + 10} className={profile.streak > 0 ? "text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.5)]" : "text-zinc-800"} />
-                <span className="text-5xl font-black tracking-tighter">{profile.streak || 0}</span>
+                <Flame size={s.icon + 10} className={profile?.streak > 0 ? "text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.5)]" : "text-zinc-800"} />
+                <span className="text-5xl font-black tracking-tighter">{profile?.streak || 0}</span>
              </div>
              <button onClick={()=>setShowSettings(true)} className="p-4 hover:bg-white/5 rounded-2xl text-zinc-600 hover:text-red-600 transition-all active:scale-90"><Settings2 size={s.icon + 4} /></button>
           </motion.div>
         </header>
 
+        {/* CONTROLS HUB */}
         <div className="flex flex-col md:flex-row gap-6 max-w-5xl mx-auto">
            <div className="flex-1 bg-white/[0.02] p-4 rounded-[3rem] border-[0.5px] border-white/10 shadow-2xl backdrop-blur-3xl focus-within:ring-1 ring-red-600/10 transition-all glass-noise">
               <div className="flex items-center gap-4">
                  <div className="flex-1 flex items-center px-6 bg-black/40 rounded-[2.2rem] border-[0.5px] border-white/10 min-h-[60px]">
                     <Plus size={24} className="text-zinc-800" />
-                    <input value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && handleAddTask()} placeholder={String(t.add_task)} className="bg-transparent flex-1 text-lg font-bold text-white outline-none py-4" />
+                    <input value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && handleAddTask()} placeholder={String(t?.add_task)} className="bg-transparent flex-1 text-lg font-bold text-white outline-none py-4" />
                  </div>
                  <div className="flex gap-1.5 p-1 bg-black/40 rounded-2xl">
                     {['morning', 'day', 'night'].map(sl => (
-                      <button key={sl} onClick={()=>setNewTaskSlot(sl)} className={`p-3 rounded-xl transition-all ${newTaskSlot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700'}`}>{sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}</button>
+                      <button key={sl} onClick={()=>setNewTaskSlot(sl)} className={`p-3 rounded-xl transition-all ${newTaskSlot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700 hover:text-zinc-400'}`}>
+                        {sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}
+                      </button>
                     ))}
                  </div>
                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAddTask} className="bg-red-600 p-4 rounded-[1.8rem] hover:bg-red-500 shadow-xl transition-all text-white"><ArrowRightCircle size={28}/></motion.button>
@@ -409,15 +448,16 @@ const App = () => {
            </div>
            <div className="flex gap-3 p-3 bg-white/[0.01] border-[0.5px] border-white/10 rounded-[2.5rem] backdrop-blur-xl">
               <select value={timeFilter} onChange={(e)=>setTimeFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-zinc-500 outline-none cursor-pointer px-2">
-                {Object.entries(t.slots).map(([k, v]) => <option key={k} value={k} className="bg-[#09090b]">{String(v)}</option>)}
+                {Object.entries(t?.slots || {}).map(([k, v]) => <option key={k} value={k} className="bg-[#09090b]">{String(v)}</option>)}
               </select>
               <select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-zinc-500 outline-none cursor-pointer px-2">
                 <option value="all" className="bg-[#09090b]">All Filters</option>
-                {Object.entries(t.status).map(([k, v]) => <option key={k} value={k} className="bg-[#09090b]">{String(v)}</option>)}
+                {Object.entries(t?.status || {}).map(([k, v]) => <option key={k} value={k} className="bg-[#09090b]">{String(v)}</option>)}
               </select>
            </div>
         </div>
 
+        {/* TASK GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-40">
            <AnimatePresence mode='popLayout'>
            {filteredTasks.length === 0 ? (
@@ -431,17 +471,18 @@ const App = () => {
            </AnimatePresence>
         </div>
 
+        {/* FLOATING WATER HUB */}
         <div className="fixed bottom-10 right-10 z-50 flex flex-col items-end gap-6">
            <AnimatePresence>
            {showWater && (
              <motion.div initial={{ opacity: 0, scale: 0.8, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: 20 }} className="bg-zinc-950/98 border-[0.5px] border-white/20 p-8 rounded-[4rem] shadow-[0_30px_100px_rgba(0,0,0,1)] w-80 backdrop-blur-3xl overflow-hidden glass-noise">
                 <div className="flex justify-between items-center mb-8 relative z-10 px-2 text-right" dir="rtl">
-                   <h4 className="font-black text-xl italic uppercase tracking-tighter text-blue-500">Hydration</h4>
+                   <h4 className="font-black text-xl italic uppercase tracking-tighter text-blue-500">{t?.water.label}</h4>
                    <button onClick={()=>setShowWater(false)}><X size={20} className="text-zinc-600" /></button>
                 </div>
                 <div className="h-56 w-full bg-black/60 rounded-[2.5rem] relative overflow-hidden mb-8 border-[0.5px] border-white/10 shadow-inner">
-                   <motion.div animate={{ y: [0, -3, 0], x: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 15, ease: "easeInOut" }} className="absolute bottom-0 left-[-10%] w-[120%] bg-blue-600/25" style={{ height: `${Math.min(100, ((profile.waterLevel || 0) / 4000) * 100)}%` }} />
-                   <div className="absolute inset-0 flex items-center justify-center font-black text-6xl tracking-tighter opacity-70 z-10">{Math.round(((profile.waterLevel || 0) / 4000) * 100)}%</div>
+                   <motion.div animate={{ y: [0, -3, 0], x: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 15, ease: "easeInOut" }} className="absolute bottom-0 left-[-10%] w-[120%] bg-blue-600/25" style={{ height: `${Math.min(100, ((profile?.waterLevel || 0) / 4000) * 100)}%` }} />
+                   <div className="absolute inset-0 flex items-center justify-center font-black text-6xl tracking-tighter opacity-70 z-10">{Math.round(((profile?.waterLevel || 0) / 4000) * 100)}%</div>
                 </div>
                 <div className="flex items-center gap-2 mb-6 text-right" dir="rtl">
                    {[100, 250, 600].map(v => (
@@ -449,12 +490,12 @@ const App = () => {
                    ))}
                 </div>
                 <div className="flex gap-2">
-                   <input type="number" value={customWater} onChange={(e)=>setCustomWater(e.target.value)} placeholder={String(t.water.custom)} className="flex-1 bg-black/60 border border-white/10 rounded-2xl p-4 text-xs font-black text-white outline-none focus:ring-1 ring-blue-600" />
+                   <input type="number" value={customWater} onChange={(e)=>setCustomWater(e.target.value)} placeholder={String(t?.water.custom)} className="flex-1 bg-black/60 border border-white/10 rounded-2xl p-4 text-xs font-black text-white outline-none focus:ring-1 ring-blue-600" />
                    <button onClick={()=>addWater(customWater)} className="bg-blue-600 p-4 rounded-2xl shadow-lg active:scale-90 transition-transform"><Plus size={20}/></button>
                    <button onClick={async () => {
-                     const lastAmt = profile.lastWaterAmount || 0;
-                     const newLvl = Math.max(0, (profile.waterLevel || 0) - lastAmt);
-                     if (user.isDemo) setProfile({...profile, waterLevel: newLvl});
+                     const lastAmt = profile?.lastWaterAmount || 0;
+                     const newLvl = Math.max(0, (profile?.waterLevel || 0) - lastAmt);
+                     if (user.isDemo) setProfile(prev => ({...prev, waterLevel: newLvl}));
                      else await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { waterLevel: newLvl });
                    }} className="bg-zinc-800 p-4 rounded-2xl text-zinc-500 hover:text-red-500 transition-all"><Undo2 size={20}/></button>
                 </div>
@@ -464,18 +505,42 @@ const App = () => {
            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setShowWater(!showWater)} className="w-20 h-20 bg-blue-600 text-white rounded-full shadow-[0_15px_40px_rgba(37,99,235,0.5)] flex items-center justify-center border-[0.5px] border-white/30 group"><Droplets size={32} className="group-hover:animate-bounce" /></motion.button>
         </div>
 
-        {/* SETTINGS OVERLAY (Full-Screen Backdrop Blur Mask) */}
+        {/* EDIT TASK OVERLAY */}
+        <AnimatePresence>
+        {editingTask && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6" dir="rtl">
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black backdrop-blur-2xl z-0" onClick={()=>setEditingTask(null)} />
+             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-lg bg-zinc-900/90 border-[0.5px] border-white/10 p-10 rounded-[4rem] shadow-2xl glass-noise z-10">
+                <button onClick={()=>setEditingTask(null)} className="absolute top-10 right-10 text-zinc-600 hover:text-white transition-colors"><X size={28}/></button>
+                <h2 className="text-3xl font-black mb-10 italic text-red-600 uppercase text-right">Secure Update</h2>
+                <div className="space-y-10 text-right">
+                   <input value={String(editingTask.text)} onChange={(e)=>setEditingTask({...editingTask, text: e.target.value})} className="w-full bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-5 text-xl font-black text-white outline-none" />
+                   <div className="grid grid-cols-2 gap-6">
+                      <div className="flex gap-2 p-1.5 bg-black/40 rounded-2xl border-[0.5px] border-white/5">
+                        {['morning', 'day', 'night'].map(sl => (
+                          <button key={sl} onClick={()=>setEditingTask({...editingTask, slot: sl})} className={`flex-1 p-3 rounded-xl transition-all ${editingTask.slot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700'}`}>{sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}</button>
+                        ))}
+                      </div>
+                      <select value={editingTask.category} onChange={(e)=>setEditingTask({...editingTask, category: e.target.value})} className="w-full bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-4 text-[10px] font-black text-white outline-none"><option value="personal">Personal</option><option value="uni">University</option><option value="gym">Gym</option></select>
+                   </div>
+                   <button onClick={async ()=>{ if(user.isDemo) { setTasks(tasks.map(t=>t.id===editingTask.id?editingTask:t)); setEditingTask(null); } else { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', editingTask.id), editingTask); setEditingTask(null); } }} className="w-full py-6 bg-red-600 rounded-[2.2rem] font-black text-white shadow-xl active:scale-95 transition-all">Apply Changes ⚡</button>
+                </div>
+             </motion.div>
+          </div>
+        )}
+        </AnimatePresence>
+
+        {/* SETTINGS OVERLAY */}
         <AnimatePresence>
         {showSettings && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 text-right" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black backdrop-blur-2xl z-0" onClick={()=>setShowSettings(false)} />
-            
             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="relative w-full max-w-2xl bg-white/[0.05] border-[0.5px] border-white/10 p-12 md:p-16 rounded-[4rem] md:rounded-[5rem] shadow-2xl backdrop-blur-3xl max-h-[90vh] overflow-y-auto no-scrollbar glass-noise z-10">
                <button onClick={()=>setShowSettings(false)} className="absolute top-10 right-10 text-zinc-600 hover:text-white transition-colors z-20"><X size={32}/></button>
                <div className="space-y-16 text-left" dir="ltr">
                   <h2 className="text-4xl font-black italic mb-12 text-red-600 tracking-tighter uppercase">System Config</h2>
                   <div className="space-y-12">
-                    {/* PROFILE SETTINGS (Name Sync) */}
+                    {/* IDENTITY SETTINGS */}
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4">
                         <IDIcon size={20} className="text-red-600" />
@@ -483,10 +548,10 @@ const App = () => {
                       </div>
                       <div className="bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-4 flex items-center gap-4 group focus-within:border-red-600/40 transition-all">
                         <UserIcon size={18} className="text-zinc-700" />
-                        <input type="text" value={profile.name} onChange={(e) => handleUpdateName(e.target.value)} placeholder="Your Name..." className="bg-transparent flex-1 text-zinc-100 font-bold outline-none placeholder:text-zinc-800" />
+                        <input type="text" value={profile?.name || ""} onChange={(e) => handleUpdateName(e.target.value)} placeholder="Your Name..." className="bg-transparent flex-1 text-zinc-100 font-bold outline-none placeholder:text-zinc-800" />
                       </div>
                     </div>
-
+                    {/* SYSTEM TONE */}
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4">
                         <LanguagesIcon size={20} className="text-red-600" />
@@ -494,13 +559,14 @@ const App = () => {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {SYSTEM_LANGS.map(lang => (
-                          <button key={lang.id} onClick={async () => { if(user.isDemo) { setProfile({...profile, lang: lang.id}); return; } await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${profile.lang === lang.id ? 'border-red-600 text-white bg-red-600/5 shadow-[0_0_20px_rgba(220,38,38,0.1)]' : 'border-white/5 text-zinc-700 bg-white/[0.01] hover:bg-white/5'}`}>
+                          <button key={lang.id} onClick={async () => { if(user.isDemo) { setProfile(prev => ({...prev, lang: lang.id})); return; } await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${currentLang === lang.id ? 'border-red-600 text-white bg-red-600/5 shadow-[0_0_20px_rgba(220,38,38,0.1)]' : 'border-white/5 text-zinc-700 bg-white/[0.01] hover:bg-white/5'}`}>
                             <span>{String(lang.label)}</span>
-                            {profile.lang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}
+                            {currentLang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}
                           </button>
                         ))}
                       </div>
                     </div>
+                    {/* UI SCALE */}
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4">
                         <Maximize2 size={20} className="text-red-600" />
@@ -508,7 +574,7 @@ const App = () => {
                       </div>
                       <div className="grid grid-cols-3 gap-4">
                         {UI_SCALES.map(scale => (
-                          <button key={scale.id} onClick={async () => { if(user.isDemo) { setProfile({...profile, uiScale: scale.id}); return; } await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { uiScale: scale.id }); }} className={`p-6 rounded-2xl font-black text-[9px] transition-all border-[0.5px] tracking-widest ${profile.uiScale === scale.id ? 'border-red-600 text-red-500 bg-red-600/5' : 'border-white/5 text-zinc-700 bg-white/[0.01] hover:border-white/10'}`}>{String(scale.label).toUpperCase()}</button>
+                          <button key={scale.id} onClick={async () => { if(user.isDemo) { setProfile(prev => ({...prev, uiScale: scale.id})); return; } await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { uiScale: scale.id }); }} className={`p-6 rounded-2xl font-black text-[9px] transition-all border-[0.5px] tracking-widest ${profile?.uiScale === scale.id ? 'border-red-600 text-red-500 bg-red-600/5' : 'border-white/5 text-zinc-700 bg-white/[0.01] hover:border-white/10'}`}>{String(scale.label).toUpperCase()}</button>
                         ))}
                       </div>
                     </div>
@@ -520,7 +586,7 @@ const App = () => {
         )}
         </AnimatePresence>
 
-        {/* ULTRA MINIMALIST FOOTER (Signature Refined) */}
+        {/* ULTRA MINIMALIST FOOTER (Architecture Signature) */}
         <footer className="mt-64 pt-24 border-t border-white/5 flex flex-col items-center justify-center px-6 pb-24 opacity-60 gap-16 text-center">
           <div className="w-full flex flex-col md:flex-row justify-between items-center gap-8 text-zinc-800 max-w-5xl">
              <div className="flex items-center gap-2">
