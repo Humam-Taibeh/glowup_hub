@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, 
   signInWithPopup, signOut, createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, sendPasswordResetEmail 
+  signInWithEmailAndPassword, sendPasswordResetEmail, signInWithCustomToken 
 } from 'firebase/auth';
 import { 
   getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, deleteDoc, addDoc 
@@ -14,20 +14,17 @@ import {
   Gem, Filter, RefreshCw, Save, ArchiveX, History, Edit2, LogOut, Mail, Lock, KeyRound, ArrowRightCircle, ShieldCheck
 } from 'lucide-react';
 
-// --- همام: استبدل البيانات تحت ببيانات الـ Config الحقيقية من Firebase Console ---
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
+// --- Firebase Configuration & App Setup ---
+// استخدام متغيرات البيئة لضمان العمل في الـ Preview وإصلاح خطأ API Key
+const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = "glowup_nexus_v45_final";
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'glowup_nexus_v45_final';
+
+// Gemini API Key Placeholder
+const apiKey = ""; 
+const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
 
 const App = () => {
   // --- 1. Core States ---
@@ -77,7 +74,7 @@ const App = () => {
     root.style.setProperty('--icon-scale', scales[config.iconSize] || '1');
   }, [config]);
 
-  // --- 2. Multi-Language Dictionary ---
+  // --- 2. Robust Multi-Language Dictionary ---
   const dictionary = useMemo(() => ({
     ar: {
       welcome: "يا هلا.. عرفني عن اسمك؟",
@@ -173,11 +170,22 @@ const App = () => {
 
   const t = useMemo(() => dictionary[lang] || dictionary.ar, [lang, dictionary]);
 
-  // --- 3. Firebase Listeners ---
+  // --- 3. Firebase Initialization & Auth Listeners ---
   useEffect(() => {
+    const initAuth = async () => {
+      setIsAuthLoading(true);
+      // استخدام Custom Token إذا وجد أو الدخول كـ Guest
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      }
+      setIsAuthLoading(false);
+    };
+    initAuth();
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      if (!u) { setUserName(""); setIsAuthLoading(false); }
+      if (!u) {
+        setUserName("");
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -200,16 +208,18 @@ const App = () => {
       } else {
         setUserName(""); // Shows name entry screen
       }
-      setIsAuthLoading(false);
-    });
-    const unsubTasks = onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'), (snap) => {
+    }, (error) => console.log("Profile Error:", error));
+
+    const tasksCol = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
+    const unsubTasks = onSnapshot(tasksCol, (snap) => {
       const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTasks(list.sort((a, b) => new Date(b.dateAdded) - new Date(a.dateAdded)));
-    });
+    }, (error) => console.log("Tasks Error:", error));
+
     return () => { unsubProfile(); unsubTasks(); };
   }, [user]);
 
-  // --- 4. Logic Handlers ---
+  // --- 4. Handlers & Actions ---
   const handleEmailAuth = async (e) => {
     e.preventDefault();
     setLoginError("");
@@ -222,7 +232,7 @@ const App = () => {
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try { await signInWithPopup(auth, provider); } 
-    catch (error) { setLoginError("Google restricted here. Use Email! ⚠️"); }
+    catch (error) { setLoginError("قوقل مقيد حالياً. استخدم الإيميل! ⚠️"); }
   };
 
   const handleLogout = async () => { await signOut(auth); window.location.reload(); };
@@ -269,7 +279,17 @@ const App = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // --- 5. Main Render ---
+  // AI Quote Refresh
+  const refreshAiQuote = async () => {
+    if (!userName) return;
+    setIsAiLoading(true);
+    // Placeholder AI behavior (Real API call would be implemented here with Exponential Backoff)
+    const quotes = ["الالتزام هو اللي بيصنع الفرق.. 🔥", "الوحوش ما بتوقف.. كمل طريقك! 🦾", "كل مهمة بتخلصها هي خطوة للقمة. 👑"];
+    setCurrentQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+    setIsAiLoading(false);
+  };
+
+  // --- 5. Rendering ---
   if (isAuthLoading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 size={64} className="text-blue-500 animate-spin" /></div>;
 
   if (!user || !userName) {
@@ -291,8 +311,8 @@ const App = () => {
                 </div>
               ) : (
                 <form onSubmit={handleEmailAuth} className="space-y-4">
-                  <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Mail className="text-slate-600" size={20} /><input type="email" placeholder="Email" className="bg-transparent flex-1 outline-none font-bold text-white text-lg" onChange={(e)=>setEmail(e.target.value)} required /></div>
-                  <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Lock className="text-slate-600" size={20} /><input type="password" placeholder="Password" className="bg-transparent flex-1 outline-none font-bold text-white text-lg" onChange={(e)=>setPassword(e.target.value)} required /></div>
+                  <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Mail className="text-slate-600" size={20} /><input type="email" placeholder="Email" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right" onChange={(e)=>setEmail(e.target.value)} required /></div>
+                  <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Lock className="text-slate-600" size={20} /><input type="password" placeholder="Password" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right" onChange={(e)=>setPassword(e.target.value)} required /></div>
                   <button type="submit" className="w-full bg-blue-600 py-6 rounded-[2rem] font-black text-white active:scale-95 transition-all uppercase tracking-widest shadow-xl shadow-blue-900/20">{authMode === 'login' ? 'Sign In' : 'Join Now'}</button>
                   <div className="flex justify-between text-[10px] font-black uppercase text-slate-500">
                     <button type="button" onClick={()=>setAuthMode(authMode==='login'?'register':'login')}>{authMode==='login'?'Create Account':'Back to Login'}</button>
@@ -302,7 +322,7 @@ const App = () => {
                   <button type="button" onClick={handleGoogleSignIn} className="bg-white text-slate-900 p-5 rounded-3xl font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2 w-full"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" /> GOOGLE</button>
                 </form>
               )}
-              {loginError && <p className="text-red-500 text-xs font-black animate-pulse">{loginError}</p>}
+              {loginError && <p className="text-red-500 text-xs font-black animate-pulse">{String(loginError)}</p>}
               <div className="flex items-center justify-center gap-3 opacity-30 mt-8"><ShieldCheck size={14}/><p className="text-[8px] font-bold uppercase tracking-widest">Cloud Shield Active • V45.0</p></div>
             </div>
           </div>
@@ -313,15 +333,13 @@ const App = () => {
 
   return (
     <div className={`min-h-screen transition-all duration-1000 p-6 md:p-8 pb-48 font-sans ${isGymMode ? 'bg-[#0f0105]' : 'bg-[#020617]'}`}>
-      {isGymMode && <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden opacity-30"><div className="absolute bottom-0 left-0 w-full h-64 bg-gradient-to-t from-red-600/40 to-transparent animate-heat-rise"></div></div>}
-      
       <div className="w-full max-w-full mx-auto main-wrapper" style={{ zoom: scalingStyles.zoom }}>
         <header className="flex flex-col gap-10 mb-16 border-b border-white/5 pb-12 animate-in slide-in-from-top-10">
           <div className="flex flex-col md:flex-row justify-between items-start gap-12 text-right">
-            <h1 className={`text-5xl md:text-8xl font-black tracking-tighter italic ${isGymMode ? 'text-red-600' : 'text-white'}`}>هلا <span className="bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent uppercase">{userName}</span></h1>
+            <h1 className={`text-5xl md:text-8xl font-black tracking-tighter italic ${isGymMode ? 'text-red-600 drop-shadow-[0_0_20px_red]' : 'text-white'}`}>هلا <span className="bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent uppercase">{String(userName)}</span></h1>
             <div className="flex gap-4">
               <div className={`p-8 rounded-[2.5rem] border glass flex items-center gap-8 min-w-[280px] shadow-2xl ${isGymMode ? 'border-red-500/30' : 'border-white/5'}`}>
-                 <div className="flex-1 text-right leading-none"><p className="text-[10px] text-slate-500 uppercase font-black mb-1">AURA</p><p className={`text-5xl font-black ${isGymMode ? 'text-red-500' : 'text-blue-400'}`}><Gem className="inline mr-2" size={28} /> {aura}</p></div>
+                 <div className="flex-1 text-right leading-none"><p className="text-[10px] text-slate-500 uppercase font-black mb-1">AURA</p><p className={`text-5xl font-black ${isGymMode ? 'text-red-500' : 'text-blue-400'}`}><Gem className="inline" size={28} /> {aura}</p></div>
                  <div className="w-[1px] h-12 bg-white/10"></div>
                  <div className="text-center leading-none"><p className="text-[10px] text-slate-500 uppercase font-black mb-1">STREAK</p><p className="text-5xl font-black text-orange-500">{streak} <Flame className="inline animate-pulse" size={32}/></p></div>
               </div>
@@ -331,12 +349,11 @@ const App = () => {
           </div>
           <div className={`w-full flex items-center justify-between px-10 py-5 rounded-[3rem] border glass ${isGymMode ? 'border-red-500/30' : ''}`}>
               <Quote className={isGymMode ? 'text-red-500 animate-pulse' : 'text-blue-500'} size={28} />
-              <p className="text-xl md:text-2xl font-black italic tracking-tight truncate">"{currentQuote}"</p>
-              <button onClick={()=>{}} className="p-4 rounded-2xl border border-white/5 hover:rotate-180 transition-transform duration-500"><RefreshCw size={24}/></button>
+              <p className="text-xl md:text-2xl font-black italic tracking-tight truncate">"{String(currentQuote)}"</p>
+              <button onClick={refreshAiQuote} className="p-4 rounded-2xl border border-white/5 hover:rotate-180 transition-transform duration-500">{isAiLoading ? <Loader2 className="animate-spin" /> : <RefreshCw size={24}/>}</button>
           </div>
         </header>
 
-        {/* FOCUS HUB */}
         <section className={`p-8 rounded-[4rem] border glass shadow-2xl flex items-center justify-between gap-12 w-full mb-12 ${isGymMode ? 'border-red-500/30 shadow-red-950/20' : ''}`}>
             <div className="flex flex-col gap-4 min-w-[120px]">
                 <button onClick={()=>setTimerActive(!timerActive)} className={`w-16 h-16 rounded-3xl flex items-center justify-center transition-all active:scale-90 ${timerActive ? 'bg-red-500/20 text-red-500' : 'bg-blue-600 text-white shadow-xl shadow-blue-900/40'}`}>{timerActive ? <Pause size={32}/> : <Play size={32}/>}</button>
@@ -356,12 +373,11 @@ const App = () => {
             </div>
         </section>
 
-        {/* TASK HUB */}
         <div className="space-y-12">
             <div className={`glass p-4 rounded-[4rem] border transition-all ${isGymMode ? 'border-red-600/30 focus-within:ring-4 ring-red-600/10' : 'border-white/5 focus-within:ring-4 ring-blue-600/10'}`}>
                 <form onSubmit={(e)=>{e.preventDefault(); handleAddTask(e.target.task.value); e.target.reset();}} className="flex gap-4 items-center">
                     <div className={`flex-1 flex items-center px-10 rounded-[2.5rem] border glass ${isGymMode ? 'border-red-900/30' : 'border-slate-800'}`}>
-                        <Plus size={32} className={isGymMode ? 'text-red-700 mr-6' : 'text-slate-600 mr-6'} /><input name="task" placeholder={String(t.addTaskPlaceholder).replace('{name}', userName)} className="w-full bg-transparent py-10 text-3xl font-black outline-none text-white placeholder:text-slate-800" />
+                        <Plus size={32} className={isGymMode ? 'text-red-700 mr-6' : 'text-slate-600 mr-6'} /><input name="task" placeholder={String(t.addTaskPlaceholder).replace('{name}', userName)} className="w-full bg-transparent py-10 text-3xl font-black outline-none text-white placeholder:text-slate-800 text-right" />
                     </div>
                     <button type="submit" className={`px-10 py-5 rounded-[2rem] font-black text-white active:scale-95 transition-all shadow-xl ${isGymMode ? 'bg-red-600' : 'bg-blue-600'}`}>إضافة</button>
                 </form>
@@ -370,9 +386,9 @@ const App = () => {
                 {tasks.length === 0 ? <div className="py-40 text-center border-4 border-dashed border-slate-900/40 rounded-[5rem] animate-pulse opacity-20"><ArchiveX size={64} className="mx-auto mb-6"/><p className="text-2xl font-black uppercase tracking-widest italic">Operations Pending..</p></div> : 
                   tasks.map(task => (
                     <div key={task.id} className={`group flex items-center justify-between p-6 rounded-[3rem] border glass transition-all duration-700 ${task.completed ? 'opacity-30 grayscale scale-95 border-slate-900' : 'hover:border-blue-500/30 hover:scale-[1.01]'}`}>
-                      <div className="flex items-center gap-10 flex-1 overflow-hidden">
+                      <div className="flex items-center gap-10 flex-1 overflow-hidden text-right">
                         <button onClick={()=>toggleStatus(task.id)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${task.completed ? 'bg-emerald-500 text-white shadow-emerald-900/40' : 'glass border-2 border-slate-800 text-transparent hover:border-blue-500 shadow-inner'}`}><CheckCircle size={24}/></button>
-                        <div className="flex flex-col"><p className={`text-2xl font-black tracking-tighter truncate ${task.completed ? 'line-through text-slate-500' : 'text-slate-100'}`}>{task.text}</p></div>
+                        <div className="flex flex-col"><p className={`text-2xl font-black tracking-tighter truncate ${task.completed ? 'line-through text-slate-500' : 'text-slate-100'}`}>{String(task.text)}</p></div>
                       </div>
                       <button onClick={()=>deleteTask(task.id)} className="opacity-0 group-hover:opacity-100 p-4 text-slate-600 hover:text-red-500 transition-all"><Trash2 size={24}/></button>
                     </div>))}
@@ -381,7 +397,7 @@ const App = () => {
 
         <footer className="mt-48 border-t border-white/5 pt-16 flex justify-between items-center opacity-40 hover:opacity-100 transition-all text-right">
             <p className="text-xs font-black uppercase tracking-widest italic">V45.0 Master Build</p>
-            <div className="text-right leading-none"><p className="text-[10px] font-black uppercase text-slate-600 mb-2 text-right">Powered by</p><p className={`text-2xl font-black uppercase tracking-widest text-white italic`}>Humam Taibeh 🦾</p></div>
+            <div className="text-right leading-none"><p className="text-[10px] font-black uppercase text-slate-600 mb-2">Powered by</p><p className={`text-2xl font-black uppercase tracking-widest text-white italic`}>Humam Taibeh 🦾</p></div>
         </footer>
       </div>
 
@@ -397,14 +413,6 @@ const App = () => {
                         <label className="text-[11px] font-black uppercase tracking-widest text-slate-500">اسم المناداة</label>
                         <input type="text" value={draftName} className="w-full border rounded-[3rem] p-8 font-black text-white text-4xl text-center outline-none bg-slate-950/50 shadow-inner" onChange={(e) => setDraftName(e.target.value)} />
                     </div>
-                    <div className="space-y-6 text-center">
-                        <label className="text-[11px] font-black uppercase tracking-widest text-slate-500 italic mb-2 block text-right">اللغة</label>
-                        <div className="grid grid-cols-3 gap-4">
-                            {[{id:'ar', n:'العربية'}, {id:'en_slang', n:'Slang EN'}, {id:'en_normal', n:'Standard EN'}].map(l => (
-                                <button key={l.id} onClick={() => setDraftLang(l.id)} className={`py-6 rounded-3xl text-xs font-black uppercase transition-all ${draftLang === l.id ? 'bg-blue-600 text-white shadow-xl shadow-blue-900/20' : 'bg-slate-800 text-slate-500 shadow-sm'}`}>{l.n}</button>
-                            ))}
-                        </div>
-                    </div>
                     <div className="pt-16 border-t border-white/5 space-y-6">
                         <button onClick={() => { saveProfile({ name: draftName, lang: draftLang, config: draftConfig }); setShowSettings(false); }} className="w-full py-8 rounded-[3rem] font-black text-sm uppercase bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xl transition-all active:scale-95"><Save size={28} className="inline mr-2" /> حفظ التغييرات</button>
                         <button onClick={()=>signOut(auth).then(()=>window.location.reload())} className="w-full bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white py-5 rounded-[3rem] font-black text-xs flex items-center justify-center gap-3 transition-all"><LogOut size={18}/> تسجيل خروج</button>
@@ -413,11 +421,6 @@ const App = () => {
               </div>
           </div>
       )}
-
-      <style>{`
-        @keyframes heat-rise { 0% { transform: translateY(0) scaleY(1); opacity: 0.3; } 50% { transform: translateY(-30px) scaleY(1.15); opacity: 0.6; } 100% { transform: translateY(-60px) scaleY(1.3); opacity: 0; } }
-        .animate-heat-rise { animation: heat-rise 2.5s infinite linear; }
-      `}</style>
     </div>
   );
 };
