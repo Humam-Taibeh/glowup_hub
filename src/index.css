@@ -1,51 +1,382 @@
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;700;900&display=swap');
+import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc 
+} from 'firebase/firestore';
+import { 
+  Droplets, CheckCircle2, Circle, Flame, Zap, Settings, 
+  RotateCcw, Plus, Trash2, AlertCircle, Moon, Sun, Sunrise, Monitor,
+  ShieldCheck, Droplet, User, Globe
+} from 'lucide-react';
 
-:root {
-  font-family: 'Tajawal', sans-serif;
-  background-color: #050505;
-  color-scheme: dark;
-  scroll-behavior: smooth;
-}
+// --- Sovereign Infrastructure ---
+const localFirebaseConfig = {
+  apiKey: "AIzaSyDRB_9laY7I6lG6ZpgphX5dzKiUdhwl40M",
+  authDomain: "aura-sovereign.firebaseapp.com",
+  projectId: "aura-sovereign",
+  storageBucket: "aura-sovereign.firebasestorage.app",
+  messagingSenderId: "912670363868",
+  appId: "1:912670363868:web:a8200c36998d7520ce2419",
+  measurementId: "G-C0FJ2VH891"
+};
 
-body {
-  margin: 0;
-  padding: 0;
-  background: #050505;
-  overflow-x: hidden;
-}
+const firebaseConfig = typeof __firebase_config !== 'undefined' 
+  ? JSON.parse(__firebase_config) 
+  : localFirebaseConfig;
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'aura-sovereign-v43';
 
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+// --- Translation Matrix ---
+const TRANSLATIONS = {
+  AR_URBAN: {
+    welcome: "يا هلا يا وحش! جاهز للـ Glow Up؟",
+    water_title: "عداد المي (Hydration)",
+    morning: "مهام الفجرية",
+    day: "وقت الشغل والحرث",
+    night: "مهام السهرة",
+    aura: "سكور الهيبة",
+    streak: "الالتزام",
+    save: "تثبيت الهوية",
+    undo: "تراجع",
+    footer: "HUMAM TAIBEH",
+    placeholder: "شو الهدف الجاي يا وحش؟",
+    quotes: [
+      "يا وحش الصلاة قبل كل شي، هي عمودك الفقري.",
+      "الحديد ما بلين لحاله، قوم شدلي حالك بالجيم.",
+      "معدل شرب المي عندك تعبان، اشرب يا كبير.",
+      "تذكر ليش بلشت، الـ Glow Up بدو صبر."
+    ]
+  },
+  EN_SLANG: {
+    welcome: "Yo, ready for that glow up? Let's get it.",
+    water_title: "Water Protocol",
+    morning: "Sunrise Grind",
+    day: "The Hustle",
+    night: "Late Night Moves",
+    aura: "Aura Score",
+    streak: "Streak",
+    save: "Lock in Identity",
+    undo: "undo",
+    footer: "HUMAM TAIBEH",
+    placeholder: "Define next objective...",
+    quotes: [
+      "Keep ur prayer on lock, it's the main pillar.",
+      "No pain no gain fr, hit the gym.",
+      "Ngl u need more water. Stay hydrated.",
+      "Stay consistent, the results r coming."
+    ]
+  }
+};
 
-::-selection {
-  background: rgba(220, 38, 38, 0.4);
-  color: white;
-}
+export default function App() {
+  const [booting, setBooting] = useState(true);
+  const [user, setUser] = useState(null);
+  const [identityInit, setIdentityInit] = useState(false);
+  const [lang, setLang] = useState('AR_URBAN');
+  const [scaling, setScaling] = useState('Standard');
+  const [userName, setUserName] = useState('');
+  
+  const [waterAmount, setWaterAmount] = useState(0);
+  const [tasks, setTasks] = useState([]);
+  const [aura, setAura] = useState(0);
+  const [streak, setStreak] = useState(1);
+  const [quoteIndex, setQuoteIndex] = useState(0);
 
-.font-light { font-weight: 300; }
-.font-black { font-weight: 900; }
+  const t = TRANSLATIONS[lang] || TRANSLATIONS.AR_URBAN;
 
-.glass-noise {
-  position: relative;
-}
+  // --- Step 1: Authentication Protocol & Emergency Handshake ---
+  useEffect(() => {
+    const initAuth = async () => {
+      const handshakeTimeout = setTimeout(() => setBooting(false), 5000); 
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth Failure:", err);
+      } finally {
+        clearTimeout(handshakeTimeout);
+        setTimeout(() => setBooting(false), 1500); 
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
-.glass-noise::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  opacity: 0.02;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-}
+  // --- Step 2: Data Retrieval ---
+  useEffect(() => {
+    if (!user) return;
+    const loadData = async () => {
+      try {
+        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data');
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const d = snap.data();
+          setUserName(d.name || '');
+          setLang(d.lang || 'AR_URBAN');
+          setScaling(d.scaling || 'Standard');
+          setWaterAmount(d.water || 0);
+          setAura(d.aura || 0);
+          setStreak(d.streak || 1);
+          setTasks(d.tasks || []);
+          setIdentityInit(true);
+        }
+      } catch (err) {
+        console.error("Firestore Load Error:", err);
+      }
+    };
+    loadData();
+  }, [user]);
 
-/* Pure Glass Texture Fix */
-.backdrop-blur-3xl {
-  background-image: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0) 100%);
+  // --- Step 3: Persistence Sync ---
+  const sync = async () => {
+    if (!user || !identityInit) return;
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data');
+      await setDoc(docRef, {
+        name: userName, lang, scaling, water: waterAmount, aura, streak, tasks,
+        lastSync: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn("Sync Lag Detected:", err.message);
+    }
+  };
+
+  useEffect(() => {
+    if (identityInit) {
+      const timer = setTimeout(sync, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [waterAmount, aura, tasks, lang, scaling, identityInit]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setQuoteIndex(p => (p + 1) % t.quotes.length), 12000);
+    return () => clearInterval(interval);
+  }, [lang]);
+
+  // --- Renderers ---
+  if (booting) {
+    return (
+      <div className="system-boot-overlay">
+        <div className="boot-loader">
+          <div className="loader-ring"></div>
+          <div className="loader-core"></div>
+        </div>
+        <div className="boot-text">ABSOLUTE SYSTEM BOOTING</div>
+        <div className="boot-subtext">V43.2 OMNI CORE INITIALIZING...</div>
+      </div>
+    );
+  }
+
+  if (!identityInit) {
+    return (
+      <div className="onboarding-screen" dir={lang.startsWith('AR') ? 'rtl' : 'ltr'}>
+        <div className="glass-card max-w-md w-full p-10 text-center space-y-8">
+          <div className="glass-noise"></div>
+          <div className="relative z-10">
+            <h1 className="text-4xl font-black tracking-tighter text-white uppercase">Identity Setup</h1>
+            <p className="text-white/40 text-xs uppercase tracking-[0.3em] mt-2">Initialize Sovereign Protocol</p>
+          </div>
+          <div className="relative z-10 space-y-4">
+            <input 
+              type="text" 
+              placeholder="Enter Your Name, Sovereign"
+              className="sovereign-input"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+            />
+            <select 
+              className="sovereign-select"
+              value={lang}
+              onChange={(e) => setLang(e.target.value)}
+            >
+              <option value="AR_URBAN">Arabic - Urban (Jordanian) 🇯🇴</option>
+              <option value="EN_SLANG">English - Street Slang 🇺🇸</option>
+            </select>
+            <button onClick={() => setIdentityInit(true)} className="btn-primary w-full py-4 uppercase font-black">
+              {t.save}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const getScalingClass = () => scaling === 'Compact' ? 'scale-compact' : scaling === 'Expanded' ? 'scale-expanded' : '';
+
+  return (
+    <div className={`main-layout ${getScalingClass()}`} dir={lang.startsWith('AR') ? 'rtl' : 'ltr'}>
+      <div className="max-w-7xl mx-auto px-6 pt-10 pb-44">
+        
+        {/* Header Protocol */}
+        <header className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+          <div className="glass-card p-8 flex justify-between items-center group overflow-hidden">
+            <div className="glass-noise opacity-5"></div>
+            <div className="relative z-10">
+              <p className="meta-label uppercase">{t.aura}</p>
+              <h2 className="score-val text-red-500">{aura}</h2>
+            </div>
+            <Zap className="icon-badge text-red-500 relative z-10" />
+          </div>
+          <div className="glass-card p-8 flex justify-between items-center group overflow-hidden">
+            <div className="glass-noise opacity-5"></div>
+            <div className="relative z-10">
+              <p className="meta-label uppercase">{t.streak}</p>
+              <h2 className="score-val text-orange-500">{streak} <span className="text-xl">DAYS</span></h2>
+            </div>
+            <Flame className="icon-badge text-orange-500 relative z-10" />
+          </div>
+        </header>
+
+        {/* Motivational Stream */}
+        <div className="glass-card p-6 mb-10 border-l-[6px] border-l-red-600 flex items-center gap-6 overflow-hidden">
+          <div className="glass-noise opacity-5"></div>
+          <ShieldCheck className="w-8 h-8 text-red-600 hidden md:block relative z-10" />
+          <p className="text-xl font-bold italic text-white/90 leading-relaxed tracking-tight relative z-10">"{t.quotes[quoteIndex]}"</p>
+        </div>
+
+        {/* Core Matrix */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          
+          {/* Side Panel: Water Hub & Config */}
+          <div className="lg:col-span-4 space-y-8">
+            <div className="glass-card h-[550px] flex flex-col justify-between p-8 overflow-hidden relative group">
+              <div className="glass-noise opacity-10"></div>
+              <div className="water-wave-anim" style={{ height: `${Math.min((waterAmount / 2000) * 100, 100)}%` }}></div>
+              <div className="relative z-10 text-center">
+                <h3 className="text-2xl font-black uppercase tracking-tighter">{t.water_title}</h3>
+                <p className="text-[10px] text-white/30 font-mono">TARGET: 2000ML DAILY PROTOCOL</p>
+              </div>
+              <div className="relative z-10 flex flex-col items-center">
+                <div className="water-icon-wrap">
+                  <Droplets className="w-20 h-20 text-red-600 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
+                </div>
+                <div className="text-7xl font-black tabular-nums tracking-tighter">{waterAmount}</div>
+                <div className="text-red-500 font-bold uppercase text-xs tracking-widest mt-2">Milliliters</div>
+              </div>
+              <div className="relative z-10 grid grid-cols-2 gap-3">
+                <button onClick={() => setWaterAmount(p => p + 250)} className="btn-glass hover:scale-105 transition-transform">+250</button>
+                <button onClick={() => setWaterAmount(p => p + 500)} className="btn-glass hover:scale-105 transition-transform">+500</button>
+                <button onClick={() => setWaterAmount(p => Math.max(0, p - 250))} className="btn-glass flex justify-center items-center hover:bg-red-600/10 transition-colors">
+                  <RotateCcw className="w-4 h-4 text-white/40" />
+                </button>
+                <button onClick={() => {
+                  const v = prompt("Custom ml:");
+                  if(v) setWaterAmount(p => p + parseInt(v));
+                }} className="btn-primary uppercase font-black">Custom</button>
+              </div>
+            </div>
+
+            <div className="glass-card p-6 space-y-4 overflow-hidden relative">
+              <div className="glass-noise opacity-5"></div>
+              <div className="relative z-10 flex items-center gap-2 text-[10px] font-bold text-white/30 tracking-[0.3em] uppercase">
+                <Settings className="w-4 h-4" /> System Config
+              </div>
+              <div className="relative z-10 flex gap-2">
+                {['Compact', 'Standard', 'Expanded'].map(s => (
+                  <button key={s} onClick={() => setScaling(s)} className={`choice-btn font-bold ${scaling === s ? 'active' : ''}`}>{s[0].toUpperCase()}</button>
+                ))}
+              </div>
+              <select className="sovereign-select text-xs p-2 relative z-10" value={lang} onChange={(e) => setLang(e.target.value)}>
+                <option value="AR_URBAN">Jordanian Urban 🇯🇴</option>
+                <option value="EN_SLANG">Street Slang 🇺🇸</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Main Panel: Task Matrix */}
+          <div className="lg:col-span-8 space-y-8">
+            {[
+              { id: 'Sunrise', icon: <Sunrise className="text-orange-500" />, title: t.morning },
+              { id: 'Grind', icon: <Sun className="text-yellow-500" />, title: t.day },
+              { id: 'Late', icon: <Moon className="text-purple-500" />, title: t.night }
+            ].map(slot => (
+              <div key={slot.id} className="glass-card p-8 overflow-hidden relative">
+                <div className="glass-noise opacity-5"></div>
+                <div className="flex justify-between items-center mb-8 relative z-10">
+                  <div className="flex items-center gap-4">
+                    <div className="slot-icon-box">{slot.icon}</div>
+                    <h3 className="text-2xl font-black tracking-tighter uppercase">{slot.title}</h3>
+                  </div>
+                  <button 
+                    onClick={() => setTasks([...tasks, { id: Date.now(), text: '', slot: slot.id, status: 'Todo', time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }])}
+                    className="add-task-btn active:scale-90 transition-transform"
+                  >
+                    <Plus className="w-6 h-6" />
+                  </button>
+                </div>
+                <div className="space-y-4 relative z-10">
+                  {tasks.filter(tk => tk.slot === slot.id).map(task => (
+                    <div key={task.id} className={`task-row group/row transition-all duration-300 ${task.status}`}>
+                      <button 
+                        className="task-status-btn"
+                        onClick={() => {
+                          setTasks(tasks.map(t => {
+                            if (t.id === task.id) {
+                              const next = t.status === 'Todo' ? 'Doing' : t.status === 'Doing' ? 'Done' : t.status === 'Done' ? 'Missed' : 'Todo';
+                              if (next === 'Done') setAura(a => a + 10);
+                              return { ...t, status: next };
+                            }
+                            return t;
+                          }));
+                        }}
+                      >
+                        {task.status === 'Todo' && <Circle className="w-6 h-6 text-white/20 hover:text-red-500 transition-colors" />}
+                        {task.status === 'Doing' && <div className="loader-spin-mini border-red-500"></div>}
+                        {task.status === 'Done' && <CheckCircle2 className="w-6 h-6 text-green-500" />}
+                        {task.status === 'Missed' && <AlertCircle className="w-6 h-6 text-red-600 animate-pulse" />}
+                      </button>
+                      <input 
+                        className="task-input flex-1 bg-transparent border-none outline-none font-bold placeholder:text-white/10" 
+                        value={task.text} 
+                        placeholder={t.placeholder}
+                        onChange={(e) => setTasks(tasks.map(t => t.id === task.id ? {...t, text: e.target.value} : t))}
+                      />
+                      <span className="task-time opacity-20 text-[10px] font-mono group-hover/row:opacity-100 transition-opacity">{task.time}</span>
+                      <button onClick={() => setTasks(tasks.filter(t => t.id !== task.id))} className="delete-task-btn opacity-0 group-hover/row:opacity-100 transition-opacity p-2 hover:bg-red-600/20 rounded-lg">
+                        <Trash2 className="w-4 h-4 text-red-500/50 hover:text-red-500" />
+                      </button>
+                    </div>
+                  ))}
+                  {tasks.filter(tk => tk.slot === slot.id).length === 0 && (
+                    <div className="text-center py-10 text-white/10 uppercase tracking-[0.5em] text-[10px] font-black">No active protocols</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Sovereign Footer */}
+      <footer className="sovereign-footer z-50">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center px-6">
+          <div className="flex items-center gap-6 text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]">
+            <div className="flex flex-col"><span>V43.2</span><span>OMNI_PRO</span></div>
+            <div className="w-px h-8 bg-white/10"></div>
+            <div className="flex items-center gap-2 text-red-600/80 animate-pulse uppercase"><Monitor className="w-4 h-4" /> Live Sync Active</div>
+          </div>
+          <div className="mt-4 md:mt-0 text-center md:text-right group cursor-default select-none">
+            <p className="text-[9px] text-white/20 tracking-[0.5em] font-black uppercase mb-1 group-hover:text-red-500/40 transition-colors">Architected By</p>
+            <h2 className="signature-static text-2xl font-black tracking-tight text-white uppercase">HUMAM TAIBEH</h2>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
 }
