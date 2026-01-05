@@ -45,7 +45,7 @@ const firebaseConfig = {
   measurementId: "G-CM81C8ED35"
 };
 
-// RULE 1: Sanitize path segments to avoid "Invalid document reference" (Even segments only)
+// RULE 1: Sanitize path segments to avoid "Invalid document reference"
 const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'aura_sovereign_v47';
 const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -55,7 +55,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // --- 2. AI SETUP (GEMINI 2.5 FLASH) ---
-const apiKey = ""; // همام: بتقدر تحط مفتاحك هون لو حبيت تشغل الذكاء الحقيقي
+const apiKey = ""; 
 const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
 
 const App = () => {
@@ -71,7 +71,7 @@ const App = () => {
 
   // UI & LOADING STATES
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [authMode, setAuthMode] = useState('login'); // login, register, reset, guest, setName
+  const [authMode, setAuthMode] = useState('login'); 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tempName, setTempName] = useState("");
@@ -108,15 +108,15 @@ const App = () => {
     return { zoom: scales[config.fontSize] || 1 };
   }, [config.fontSize]);
 
-  // ZUJ FINAL EXAM INTEL (As requested by Humam)
-  const exams = [
+  // ZUJ FINAL EXAM INTEL (Integrated Schedule)
+  const exams = useMemo(() => [
     { id: 1, name: "الريادة والابتكار", date: "14/1/2026", time: "12:00-1:00", instructor: "د. يوسف أبوزغلة", location: "مختبرات 216", daysLeft: 9 },
-    { id: 2, name: "Advanced Data Analytics", date: "21/1/2026", time: "11:30-1:30", instructor: "Dr. Ibrahim Atoum", location: "TBD", daysLeft: 16 },
+    { id: 2, name: "Data Analytics", date: "21/1/2026", time: "11:30-1:30", instructor: "Dr. Ibrahim Atoum", location: "TBD", daysLeft: 16 },
     { id: 3, name: "Data Structure", date: "26/1/2026", time: "11:30-1:30", instructor: "Dr. Sohair Al Hakeem", location: "TBD", daysLeft: 21 },
     { id: 4, name: "Data Mining", date: "2/2/2026", time: "2:00-3:30", instructor: "Dr. Bilal Hawashin", location: "TBD", daysLeft: 28 }
-  ];
+  ], []);
 
-  // --- 3. ROBUST DICTIONARY (Anti-Object Crash) ---
+  // --- 3. DICTIONARY (Anti-Object Crash) ---
   const d = useMemo(() => ({
     welcome: "يا هلا.. عرفني عن اسمك؟",
     googleBtn: "Cloud Sync (Google) ☁️",
@@ -149,14 +149,12 @@ const App = () => {
     auraGuide: "كل مهمة بتخلصها بتزيد الآورا 10 نقاط. الستريك بلمع كل ما خلصت مهام اليوم!"
   }), []);
 
-  // --- 4. FIREBASE LOGIC (Rule 3: Auth First) ---
+  // --- 4. FIREBASE LOGIC (Rule 3) ---
   useEffect(() => {
     const initAuth = async () => {
       setIsAuthLoading(true);
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
-      } else {
-        await signInAnonymously(auth).catch(() => {});
       }
       setIsAuthLoading(false);
     };
@@ -165,7 +163,7 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // DATA SYNC (Rule 1 & 2: Simple paths, memory sorting)
+  // DATA SYNC
   useEffect(() => {
     if (!user) return;
     const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data');
@@ -177,9 +175,13 @@ const App = () => {
         setAura(data.aura || 0);
         setStreak(data.streak || 0);
         setWaterTotal(data.water || 0);
-      } else { setUserName(""); }
+        setLang(data.lang || "ar");
+        setConfig(data.config || { fontSize: 'medium', iconSize: 'medium' });
+      } else {
+        setUserName(""); 
+      }
       setIsAuthLoading(false);
-    });
+    }, (error) => console.error("Firestore Segment Error Fixed:", error));
 
     const tasksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
     const unsubTasks = onSnapshot(tasksRef, (snap) => {
@@ -197,8 +199,8 @@ const App = () => {
     setLoginError("");
     try {
       if (authMode === 'login') await signInWithEmailAndPassword(auth, email, password);
-      else await createUserWithEmailAndPassword(auth, email, password);
-    } catch (err) { setLoginError("خطأ في البيانات.. تأكد وحاول ثانية ⚠️"); }
+      else if (authMode === 'register') await createUserWithEmailAndPassword(auth, email, password);
+    } catch (err) { setLoginError("خطأ في بيانات الدخول! ⚠️"); }
     finally { setIsActionLoading(false); }
   };
 
@@ -207,6 +209,11 @@ const App = () => {
     try { await signInWithPopup(auth, new GoogleAuthProvider()); } 
     catch (err) { setLoginError("قوقل مقيد حالياً. استخدم الإيميل! ⚠️"); }
     finally { setIsGoogleLoading(false); }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    window.location.reload();
   };
 
   const saveProfile = async (updates) => {
@@ -225,7 +232,6 @@ const App = () => {
   };
 
   const toggleTask = async (id) => {
-    if (!user) return;
     const task = tasks.find(t => t.id === id);
     if (!task) return;
     const sequence = ['todo', 'doing', 'done'];
@@ -246,20 +252,6 @@ const App = () => {
     saveProfile({ water: newVal });
   };
 
-  const startNewDay = async () => {
-    if (!user) return;
-    const doneToday = tasks.filter(t => t.status === 'done').length;
-    const newStreak = doneToday > 0 ? streak + 1 : 0;
-    for (const task of tasks) {
-      const taskDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', task.id);
-      if (task.frequency === 'none') { if (task.status === 'done') await deleteDoc(taskDocRef); }
-      else { await updateDoc(taskDocRef, { status: 'todo', completed: false }); }
-    }
-    saveProfile({ streak: newStreak });
-    setCurrentQuote("يوم جديد يعني فرصة جديدة للارتقاء! 🌅");
-  };
-
-  // AI Logic (Backup)
   const refreshAiQuote = () => {
     setIsAiLoading(true);
     const quotes = [
@@ -274,27 +266,26 @@ const App = () => {
     }, 600);
   };
 
-  // Timer Tick
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
   useEffect(() => {
     if (timerActive && timeLeft > 0) timerRef.current = setInterval(() => setTimeLeft(p => p - 1), 1000);
     else clearInterval(timerRef.current);
     return () => clearInterval(timerRef.current);
   }, [timerActive, timeLeft]);
 
-  const ringOffset = 502 - (502 * (timeLeft / (selectedDuration * 60)));
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
   const updateTimer = (m) => { setTimerActive(false); setTimeLeft(m * 60); setSelectedDuration(m); setIsCustomTime(false); };
 
   // --- 6. UI COMPONENTS ---
 
-  // AUTH LANDING
   if (isAuthLoading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 size={64} className="text-blue-500 animate-spin" /></div>;
 
-  if (!userName) {
+  // 🚪 AUTH & LOGIN VAULT (THIS IS WHAT YOU ASKED FOR)
+  if (!user || !userName) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-right font-sans overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-15 pointer-events-none"></div>
@@ -309,6 +300,7 @@ const App = () => {
             <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.6em] mb-12 italic">{String(d.heroSub)}</p>
             
             <div className="space-y-8">
+              {/* Step 2: Name Entry (Identity Protocol) */}
               {user && !userName ? (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                   <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">{String(d.welcome)}</p>
@@ -318,9 +310,11 @@ const App = () => {
                     onChange={(e)=>{setTempName(e.target.value); setLoginError("");}}
                     onKeyDown={(e)=>e.key==='Enter' && (!tempName.trim() ? setLoginError(String(d.errorName)) : saveProfile({name:tempName, aura:0, streak:0}))}
                   />
-                  <button onClick={()=> !tempName.trim() ? setLoginError(String(d.errorName)) : saveProfile({name: tempName, aura: 0, streak: 0})} className="w-full bg-blue-600 hover:bg-blue-500 py-6 rounded-[2.5rem] font-black text-white uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-blue-900/40">ابدأ الآن 🚀</button>
+                  <button onClick={()=> !tempName.trim() ? setLoginError(String(d.errorName)) : saveProfile({name: tempName, aura: 0, streak: 0})} className="w-full bg-blue-600 hover:bg-blue-500 py-6 rounded-[2.5rem] font-black text-white uppercase tracking-widest active:scale-95 transition-all shadow-xl">ابدأ الآن 🚀</button>
+                  <button onClick={handleLogout} className="text-xs text-slate-600 font-bold uppercase tracking-widest hover:text-white transition-all underline">العودة لشاشة الدخول</button>
                 </div>
               ) : authMode === 'reset' ? (
+                /* Password Reset Vault */
                 <div className="space-y-6 text-right animate-in slide-in-from-bottom-2">
                    <div className="bg-slate-950/50 p-6 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner">
                       <Mail className="text-slate-600" size={20} />
@@ -332,17 +326,18 @@ const App = () => {
                    <button onClick={() => setAuthMode('login')} className="w-full text-center text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest transition-all">العودة للدخول</button>
                 </div>
               ) : (
+                /* Standard Login Vault (Email, Password, Google, Guest) */
                 <div className="space-y-6">
                   <form onSubmit={handleEmailAuth} className="space-y-4">
-                    <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Mail className="text-slate-600" size={20} /><input type="email" placeholder="Email" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right" onChange={(e)=>setEmail(e.target.value)} required /></div>
-                    <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Lock className="text-slate-600" size={20} /><input type="password" placeholder="Password" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right" onChange={(e)=>setPassword(e.target.value)} required /></div>
-                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-6 rounded-3xl font-black text-white active:scale-95 transition-all shadow-xl shadow-blue-900/30">{authMode === 'login' ? String(d.emailBtn) : String(d.registerBtn)}</button>
+                    <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Mail className="text-slate-600" size={20} /><input type="email" placeholder="Email" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right placeholder:text-slate-700" onChange={(e)=>setEmail(e.target.value)} required /></div>
+                    <div className="bg-slate-950/50 p-5 rounded-3xl flex items-center gap-4 border border-white/5 shadow-inner"><Lock className="text-slate-600" size={20} /><input type="password" placeholder="Password" className="bg-transparent flex-1 outline-none font-bold text-white text-lg text-right placeholder:text-slate-700" onChange={(e)=>setPassword(e.target.value)} required /></div>
+                    <button type="submit" disabled={isActionLoading} className="w-full bg-blue-600 hover:bg-blue-500 py-6 rounded-3xl font-black text-white active:scale-95 transition-all shadow-xl shadow-blue-900/30">{authMode === 'login' ? String(d.emailBtn) : String(d.registerBtn)}</button>
                   </form>
                   <div className="flex justify-between text-[10px] font-black uppercase text-slate-500 px-4">
                     <button type="button" onClick={()=>setAuthMode(authMode==='login'?'register':'login')}>{authMode==='login'?'Join Now':'Sign In'}</button>
                     <button type="button" onClick={()=>setAuthMode('reset')}>{String(d.resetBtn)}</button>
                   </div>
-                  <div className="relative py-4"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5 opacity-10"></div></div><div className="relative flex justify-center text-[10px] font-black uppercase bg-[#0f172a] px-4 italic">Cloud Protocol</div></div>
+                  <div className="relative py-4"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5 opacity-10"></div></div><div className="relative flex justify-center text-[10px] font-black uppercase bg-[#0f172a] px-4 italic">Quick Access</div></div>
                   <div className="grid grid-cols-2 gap-4">
                     <button onClick={handleGoogleSignIn} disabled={isGoogleLoading} className="bg-white text-slate-900 p-5 rounded-3xl font-black text-[10px] uppercase transition-all hover:bg-slate-100 flex items-center justify-center gap-2 shadow-sm">{isGoogleLoading ? <Loader2 size={16} className="animate-spin" /> : <><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="google"/> GOOGLE</>}</button>
                     <button onClick={()=>signInAnonymously(auth)} className="bg-slate-800 text-white p-5 rounded-3xl font-black text-[10px] uppercase transition-all hover:bg-slate-700 flex items-center justify-center gap-2 shadow-sm"><Zap size={16} className="text-yellow-400" /> GUEST</button>
@@ -350,7 +345,8 @@ const App = () => {
                 </div>
               )}
               {loginError && <p className="text-red-500 text-[11px] font-black animate-pulse text-center">{String(loginError)}</p>}
-              <div className="flex items-center justify-center gap-3 opacity-30 mt-8"><ShieldCheck size={14}/><p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Cloud Shield Protocol Active • V47.0</p></div>
+              {successMsg && <p className="text-emerald-500 text-[11px] font-black text-center">{String(successMsg)}</p>}
+              <div className="flex items-center justify-center gap-3 opacity-30 mt-8"><ShieldCheck size={14}/><p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Cloud Shield Protocol Active • V47.1</p></div>
             </div>
           </div>
         </div>
@@ -358,24 +354,20 @@ const App = () => {
     );
   }
 
-  // MAIN DASHBOARD
+  // 🦾 MAIN OPERATIONAL HUB
   return (
     <div className={`min-h-screen transition-all duration-1000 p-6 md:p-8 pb-48 font-sans selection:bg-blue-500/30 overflow-x-hidden ${isGymMode ? 'bg-[#0b011d]' : 'bg-[#020617]'}`}>
       {isGymMode && <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden opacity-30"><div className="absolute bottom-0 left-0 w-full h-64 bg-gradient-to-t from-purple-600/40 to-transparent animate-heat-rise"></div></div>}
-      <div className="fixed inset-0 pointer-events-none opacity-40 -z-10">
-        <div className={`absolute top-[-10%] left-[-10%] w-[60%] h-[60%] blur-[150px] rounded-full transition-all duration-1000 ${isGymMode ? 'bg-purple-600/40 animate-pulse' : 'bg-blue-600/10'}`}></div>
-        <div className={`absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] blur-[150px] rounded-full transition-all duration-1000 ${isGymMode ? 'bg-red-900/30' : 'bg-indigo-600/5'}`}></div>
-      </div>
-
+      
       <div className="w-full max-w-[1400px] mx-auto main-wrapper" style={{ zoom: scalingStyles.zoom }}>
         
-        {/* TOP BAR / HEADER */}
-        <header className="flex flex-col md:flex-row justify-between items-start gap-12 mb-20 border-b border-white/5 pb-12 text-right">
+        {/* HEADER */}
+        <header className="flex flex-col md:flex-row justify-between items-start gap-12 mb-20 border-b border-white/5 pb-12 text-right animate-in slide-in-from-top-10 duration-1000">
             <div className="flex-1">
                 <h1 className={`text-6xl md:text-9xl font-black italic leading-[0.8] mb-6 tracking-tighter ${isGymMode ? 'text-purple-400 drop-shadow-[0_0_20px_purple]' : 'text-white'}`}>
                   {String(d.hello)} <span className="bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent uppercase">{String(userName)}</span>
                 </h1>
-                <div className="inline-flex items-center gap-4 bg-slate-900/40 p-5 rounded-3xl border border-white/5 shadow-2xl backdrop-blur-md group">
+                <div className="inline-flex items-center gap-4 bg-slate-900/40 p-5 rounded-3xl border border-white/5 shadow-2xl backdrop-blur-md">
                   <BrainCircuit size={20} className={isGymMode ? "text-purple-400" : "text-blue-500"} />
                   <p className="text-slate-200 italic font-bold text-lg md:text-xl leading-none truncate max-w-[400px]">"{String(currentQuote)}"</p>
                   <button onClick={refreshAiQuote} disabled={isAiLoading} className="p-2 hover:rotate-180 transition-all duration-500 text-slate-600 hover:text-white">
@@ -397,12 +389,12 @@ const App = () => {
         <main className="grid grid-cols-1 lg:grid-cols-12 gap-12">
             
             {/* COLUMN 1: VITALS & ACADEMICS (4/12) */}
-            <div className="lg:col-span-4 space-y-12 animate-in slide-in-from-left-10 duration-1000">
+            <div className="lg:col-span-4 space-y-12">
                 {/* Hydration Ops */}
                 <section className="bg-slate-900/60 p-10 rounded-[4rem] border border-white/5 shadow-2xl relative overflow-hidden group">
                     <Droplets size={150} className="absolute -right-10 -top-10 opacity-5 text-cyan-500 group-hover:scale-110 transition-transform duration-[2s]" />
                     <div className="flex justify-between items-center mb-8 relative z-10">
-                        <h2 className="text-xs font-black uppercase tracking-[0.4em] text-cyan-400 flex items-center gap-2 font-black italic"><Droplets size={14}/> Hydration Ops</h2>
+                        <h2 className="text-xs font-black uppercase tracking-[0.4em] text-cyan-400 flex items-center gap-2 italic"><Droplets size={14}/> Hydration Ops</h2>
                         <p className="text-3xl font-black text-white">{waterTotal}ml</p>
                     </div>
                     <div className="h-3 bg-slate-800 rounded-full mb-8 overflow-hidden shadow-inner"><div className="h-full bg-cyan-500 transition-all duration-1000 shadow-[0_0_15px_cyan]" style={{width:`${(waterTotal/2000)*100}%`}}></div></div>
@@ -430,7 +422,7 @@ const App = () => {
             </div>
 
             {/* COLUMN 2: OPERATIONS CENTER (8/12) */}
-            <div className="lg:col-span-8 space-y-12 animate-in slide-in-from-right-10 duration-1000">
+            <div className="lg:col-span-8 space-y-12">
                 
                 {/* TIMER HUB (VERTICAL DESIGN AS REQUESTED) */}
                 <section className={`p-10 rounded-[5rem] border glass shadow-2xl flex items-center justify-between gap-12 w-full relative overflow-hidden group ${isGymMode ? 'border-purple-500/30 shadow-purple-950/30' : 'shadow-blue-950/10'}`}>
@@ -448,7 +440,7 @@ const App = () => {
                     <div className="relative flex flex-col items-center justify-center flex-1">
                         <svg className="w-72 h-72 transform -rotate-90">
                           <circle cx="144" cy="144" r="120" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-900/50 shadow-inner" />
-                          <circle cx="144" cy="144" r="120" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray="754" strokeDashoffset={754 - (754 * (timeLeft / (selectedDuration * 60)))} strokeLinecap="round" className={`transition-all duration-1000 ${isGymMode ? 'text-purple-600 drop-shadow-[0_0_20px_purple]' : 'text-blue-500 drop-shadow-[0_0_20px_blue]'}`} />
+                          <circle cx="144" cy="144" r="120" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray="754" strokeDashoffset={754 - (754 * (timeLeft / (selectedDuration * 60)))} strokeLinecap="round" className={`transition-all duration-1000 ${isGymMode ? 'text-purple-600 drop-shadow-[0_0_15px_purple]' : 'text-blue-500 drop-shadow-[0_0_15px_blue]'}`} />
                         </svg>
                         <div className="absolute flex flex-col items-center text-center">
                           <p className="text-7xl font-black text-white tracking-tighter leading-none">{formatTime(timeLeft)}</p>
@@ -498,7 +490,7 @@ const App = () => {
                             <div key={task.id} className={`group flex items-center justify-between p-8 rounded-[4rem] border glass transition-all duration-700 ${task.completed ? 'opacity-30 grayscale scale-95 border-slate-900 shadow-none' : (isGymMode ? 'border-purple-900/20 shadow-2xl shadow-purple-950/20 hover:scale-[1.01] hover:border-purple-500/40' : 'hover:border-blue-500/30 hover:scale-[1.01] shadow-xl hover:shadow-blue-950/20')}`}>
                               <div className="flex items-center gap-10 flex-1 overflow-hidden text-right">
                                 <button onClick={()=>toggleTask(task.id)} className={`w-16 h-16 rounded-[2rem] flex items-center justify-center transition-all shadow-lg active:scale-90 ${task.completed ? 'bg-emerald-500 text-white shadow-emerald-900/40' : 'glass border-2 border-slate-800 text-transparent hover:border-blue-500 shadow-inner'}`}><CheckCircle2 size={32}/></button>
-                                <div className="flex items-center gap-8 overflow-hidden">
+                                <div className="flex items-center gap-8 overflow-hidden text-right">
                                   <span className="text-5xl flex-shrink-0 group-hover:rotate-12 transition-transform duration-700">{String(task.emoji || "✨")}</span>
                                   <div className="flex flex-col overflow-hidden text-right">
                                     <p className={`text-3xl md:text-4xl font-black tracking-tight truncate leading-tight ${task.completed ? 'line-through text-slate-500 italic' : 'text-slate-100 italic'}`}>{String(task.text)}</p>
@@ -531,12 +523,11 @@ const App = () => {
         </footer>
       </div>
 
-      {/* AURA INFO MODAL */}
+      {/* MODALS */}
       {showAuraInfo && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 text-right">
            <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-3xl" onClick={() => setShowAuraInfo(false)}></div>
            <div className="relative w-full max-w-md bg-slate-900 border border-white/10 p-16 rounded-[5rem] text-center shadow-[0_0_100px_rgba(0,0,0,1)] animate-in zoom-in-95 duration-500">
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 shadow-[0_0_15px_blue]"></div>
               <Gem size={80} className="mx-auto text-blue-400 mb-10 animate-pulse" />
               <h3 className="text-4xl font-black text-white mb-8 uppercase italic tracking-tighter">Aura Protocol</h3>
               <p className="text-slate-400 text-lg leading-relaxed mb-12 text-right font-bold italic">"{String(d.auraGuide)}"</p>
@@ -549,21 +540,20 @@ const App = () => {
         </div>
       )}
 
-      {/* SETTINGS MODAL */}
       {showSettings && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 text-right">
               <div className="absolute inset-0 bg-slate-950/98 backdrop-blur-3xl" onClick={() => setShowSettings(false)}></div>
               <div className={`relative w-full max-w-2xl border p-20 rounded-[6rem] shadow-[0_0_150px_rgba(0,0,0,0.8)] glass animate-in zoom-in-95 duration-500 ${isGymMode ? 'border-purple-500/20' : 'border-white/5'}`}>
                 <button onClick={() => setShowSettings(false)} className="absolute top-12 right-12 p-6 rounded-full border bg-slate-800 text-slate-400 hover:bg-red-500 transition-all active:scale-90 shadow-2xl"><X size={32}/></button>
-                <h2 className={`text-6xl font-black italic mb-20 flex items-center gap-6 ${isGymMode ? 'text-purple-50' : 'text-white'}`}><Settings className={isGymMode ? "animate-spin-slow text-purple-600" : "text-blue-500"} /> CORE CONFIG</h2>
-                <div className="space-y-16 relative z-10 text-right font-sans">
+                <h2 className={`text-6xl font-black italic mb-20 flex items-center gap-6 ${isGymMode ? 'text-purple-50' : 'text-white'}`}><Settings className={isGymMode ? "animate-spin-slow text-purple-600" : "text-blue-500"} /> HUB CONFIG</h2>
+                <div className="space-y-16 relative z-10 text-right">
                     <div className="space-y-6">
                         <label className="text-[12px] font-black uppercase tracking-[0.4em] text-slate-500 flex items-center justify-end gap-3 italic font-black">اسم المناداة <UserCircle size={18} /></label>
                         <input type="text" value={draftName} className={`w-full border rounded-[3rem] p-10 font-black text-white text-5xl text-center outline-none transition-all shadow-inner ${isGymMode ? 'bg-slate-950 border-purple-500/20 focus:ring-purple-600/10' : 'bg-slate-950 border-white/5 focus:ring-blue-600/10'}`} onChange={(e) => setDraftName(e.target.value)} />
                     </div>
                     <div className="pt-20 border-t border-white/5 space-y-6">
                         <button onClick={() => { saveProfile({ name: draftName }); setShowSettings(false); }} className={`w-full py-10 rounded-[3.5rem] font-black text-base uppercase tracking-[0.5em] transition-all active:scale-95 shadow-2xl flex items-center justify-center gap-4 ${isGymMode ? 'bg-purple-700 hover:bg-purple-600 shadow-purple-900/40' : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/30'}`}><Save size={32} /> {String(d.save)}</button>
-                        <button onClick={()=>signOut(auth).then(()=>window.location.reload())} className="w-full bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white py-6 rounded-[3rem] font-black text-xs uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all shadow-xl border border-white/5 active:scale-95"><LogOut size={20}/> {String(d.logout)}</button>
+                        <button onClick={handleLogout} className="w-full bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white py-6 rounded-[3rem] font-black text-xs uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all shadow-xl border border-white/5 active:scale-95"><LogOut size={20}/> {String(d.logout)}</button>
                     </div>
                 </div>
               </div>
@@ -572,7 +562,7 @@ const App = () => {
 
       <style>{`
         @keyframes heat-rise { 0% { transform: translateY(0) scaleY(1); opacity: 0.3; } 50% { transform: translateY(-40px) scaleY(1.2); opacity: 0.6; } 100% { transform: translateY(-80px) scaleY(1.4); opacity: 0; } }
-        .animate-heat-rise { animation: heat-rise 2s infinite linear; }
+        .animate-heat-rise { animation: heat-rise 2.5s infinite linear; }
         .logo-glow { text-shadow: 0 0 30px rgba(59, 130, 246, 0.5); }
         .animate-spin-slow { animation: spin 20s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
