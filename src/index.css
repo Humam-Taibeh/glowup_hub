@@ -2,19 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  body {
-    @apply bg-[#020000] text-white;
-    font-family: 'Tajawal', sans-serif;
-  }
+@import url('[https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;700;900&display=swap](https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;700;900&display=swap)');
+
+:root {
+  font-family: 'Tajawal', sans-serif;
+  background-color: #050505;
+  color-scheme: dark;
 }
 
-/* أنيميشن الحركات اللي طلبتها */
-@keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+body {
+  margin: 0;
+  overflow-x: hidden;
 }
 
-.animate-in {
-  animation: fade-in-up 0.6s ease-out forwards;
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
