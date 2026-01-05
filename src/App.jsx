@@ -18,17 +18,30 @@ import {
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 
 // ==========================================
-// SECTION 1: GLOBAL INITIALIZATION (HARD-WIRED)
+// SECTION 1: GLOBAL INITIALIZATION & SAFETY
 // ==========================================
-console.log("[SYSTEM] Absolute Engine Booting...");
+console.log("[SYSTEM] Absolute Engine Handshake Starting...");
 
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const firebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'glowup_omni_v2';
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' && __firebase_config ? __firebase_config : '{"apiKey":"DUMMY_KEY","authDomain":"dummy.firebaseapp.com","projectId":"dummy-project","storageBucket":"dummy.appspot.com","messagingSenderId":"000","appId":"000"}');
+
+let firebaseApp, auth, db;
+
+try {
+  // الحماية من الـ invalid-api-key لضمان عدم توقف الرندرة
+  firebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  auth = getAuth(firebaseApp);
+  db = getFirestore(firebaseApp);
+  console.log("[SYSTEM] Firebase Services Mounted.");
+} catch (error) {
+  console.error("[FATAL] Firebase Engine Failure:", error.message);
+  // Fallback Mock Objects لمنع حدوث Crash في المتغيرات
+  auth = { onAuthStateChanged: (cb) => { cb(null); return () => {}; } };
+  db = { };
+}
+
 const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
 const apiKey = ""; 
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'glowup_omni_v2';
 
 const AI_QUOTES = {
   ar: ["كُن النسخة الأفضل منك اليوم.", "الاستمرارية هي مفتاح الهيبة الحقيقية.", "أنت المعماري، ابنِ مستقبلك بدقة.", "الـ Glow Up يبدأ من الداخل."],
@@ -114,9 +127,7 @@ const App = () => {
   const [newTaskSlot, setNewTaskSlot] = useState("day");
   const [aiAdvice, setAiAdvice] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const [showWater, setShowWater] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-  const [customWater, setCustomWater] = useState("");
   const [timeFilter, setTimeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -129,9 +140,10 @@ const App = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
         if (isLoading || authChecking) {
-            console.warn("[SYSTEM] Bootstrap Timeout. Forcing Render.");
+            console.warn("[SYSTEM] Bootstrap Timeout. Forcing Render to prevent Black Screen.");
             setIsLoading(false);
             setAuthChecking(false);
+            if (!profile) setProfile({ name: "Architect", lang: "ar_jo", streak: 0 });
         }
     }, 5000);
     return () => clearTimeout(timer);
@@ -167,7 +179,7 @@ const App = () => {
         } else {
           await signInAnonymously(auth);
         }
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error("[AUTH] Fail:", e.message); }
       finally { setAuthChecking(false); }
     };
     initAuth();
@@ -179,7 +191,7 @@ const App = () => {
 
   // Sync Logic
   useEffect(() => {
-    if (!user || authChecking) return;
+    if (!user || authChecking || !db.collection) return;
     const pRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
     const unsubP = onSnapshot(pRef, (snap) => {
       if (snap.exists()) {
@@ -201,24 +213,18 @@ const App = () => {
   const handleUpdateName = async (newName) => {
     const updates = { name: String(newName) };
     setProfile(prev => ({ ...prev, ...updates })); 
-    if (!user) return;
+    if (!user || !db.collection) return;
     await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), updates, { merge: true });
   };
 
-  const addWater = async (ml) => {
-    if (!user) return;
-    const newLvl = (profile?.waterLevel || 0) + parseInt(ml);
-    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { waterLevel: newLvl, lastWaterAmount: parseInt(ml) }, { merge: true });
-  };
-
   const updateStatus = async (tk) => {
-    if (!user || !tk) return;
+    if (!user || !tk || !db.collection) return;
     const next = ['todo', 'doing', 'done', 'missed'][(['todo', 'doing', 'done', 'missed'].indexOf(tk.status) + 1) % 4];
     await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', tk.id), { status: next, completed: next === 'done' });
   };
 
   const handleAddTask = async () => {
-    if (!newTaskText.trim() || !user) return;
+    if (!newTaskText.trim() || !user || !db.collection) return;
     await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'), { text: String(newTaskText), status: 'todo', slot: newTaskSlot, dateAdded: new Date().toISOString() });
     setNewTaskText("");
   };
@@ -232,7 +238,7 @@ const App = () => {
         <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
           <Loader2 className="text-red-600" size={48} />
         </motion.div>
-        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-800 animate-pulse text-center">INITIALIZING ABSOLUTE SYSTEM<br/>BYPASSING BLACK SCREEN...</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-800 animate-pulse text-center px-6">INITIALIZING ABSOLUTE SYSTEM<br/>BYPASSING NETWORK LAG...</p>
       </div>
     );
   }
@@ -250,7 +256,9 @@ const App = () => {
             <input autoFocus type="text" placeholder={String(t?.identity_placeholder || "Ur Name...")} className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 text-center text-2xl font-black text-white outline-none" onChange={(e)=>setTempName(e.target.value)} />
             <button onClick={async () => {
                 if (!tempName.trim()) return;
-                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { name: String(tempName), aura: 0, lang: 'ar_jo', streak: 0, lastLogin: new Date().toISOString().split('T')[0], waterLevel: 0 }, { merge: true });
+                const pData = { name: String(tempName), aura: 0, lang: 'ar_jo', streak: 0, lastLogin: new Date().toISOString().split('T')[0], waterLevel: 0 };
+                setProfile(pData);
+                if (user && db.collection) await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), pData, { merge: true });
             }} className="w-full bg-red-600 py-6 rounded-2xl font-black text-white shadow-xl text-lg uppercase">Initialize identity ⚡</button>
           </div>
         </div>
@@ -299,7 +307,7 @@ const App = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-40">
            <AnimatePresence mode='popLayout'>
-           {filteredTasks.length === 0 ? (<motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 0.1 }} className="col-span-full py-40 text-center border-2 border-dashed border-white/5 rounded-[4rem] flex flex-col items-center gap-6"><ZapOff size={80} className="text-zinc-800" /><p className="text-2xl font-black italic tracking-widest uppercase text-zinc-800">Clear</p></motion.div>) : filteredTasks.map((tk) => (<TaskCard key={tk.id} tk={tk} t={t} s={s} onUpdate={updateStatus} onDelete={(id) => deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id))} onEdit={(task) => setEditingTask(task)} />))}
+           {filteredTasks.length === 0 ? (<motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 0.1 }} className="col-span-full py-40 text-center border-2 border-dashed border-white/5 rounded-[4rem] flex flex-col items-center gap-6"><ZapOff size={80} className="text-zinc-800" /><p className="text-2xl font-black italic tracking-widest uppercase text-zinc-800">Clear</p></motion.div>) : filteredTasks.map((tk) => (<TaskCard key={tk.id} tk={tk} t={t} s={s} onUpdate={updateStatus} onDelete={(id) => user && db.collection && deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id))} onEdit={(task) => setEditingTask(task)} />))}
            </AnimatePresence>
         </div>
 
@@ -318,9 +326,12 @@ const App = () => {
                     </div>
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4"><LanguagesIcon size={20} className="text-red-600" /><label className="text-[10px] font-black uppercase tracking-[0.5em] block italic">System Tone</label></div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{SYSTEM_LANGS.map(lang => (<button key={lang.id} onClick={async () => { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${currentLang === lang.id ? 'border-red-600 text-white bg-red-600/5' : 'border-white/5 text-zinc-700 bg-white/[0.01]'}`}><span>{String(lang.label)}</span>{currentLang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}</button>))}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{SYSTEM_LANGS.map(lang => (<button key={lang.id} onClick={async () => { 
+                          setProfile(prev => ({...prev, lang: lang.id}));
+                          if(user && db.collection) await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); 
+                      }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${currentLang === lang.id ? 'border-red-600 text-white bg-red-600/5' : 'border-white/5 text-zinc-700 bg-white/[0.01]'}`}><span>{String(lang.label)}</span>{currentLang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}</button>))}</div>
                     </div>
-                    <button onClick={async ()=>{ await signOut(auth); window.location.reload(); }} className="w-full py-8 bg-zinc-950 border-[0.5px] border-red-600/20 text-red-500 rounded-3xl font-black uppercase tracking-[0.5em] shadow-xl hover:bg-red-600 hover:text-white transition-all active:scale-95 leading-none">End Session</button>
+                    <button onClick={async ()=>{ if(auth.signOut) await signOut(auth); window.location.reload(); }} className="w-full py-8 bg-zinc-950 border-[0.5px] border-red-600/20 text-red-500 rounded-3xl font-black uppercase tracking-[0.5em] shadow-xl hover:bg-red-600 hover:text-white transition-all leading-none">End Session</button>
                   </div>
                </div>
             </motion.div>
@@ -328,7 +339,7 @@ const App = () => {
         )}
         </AnimatePresence>
 
-        {/* ULTRA MINIMALIST FOOTER (HUMAM TAIBEH SIGNATURE) */}
+        {/* ULTRA MINIMALIST FOOTER (FIXED SIGNATURE) */}
         <footer className="mt-64 pt-24 border-t border-white/5 flex flex-col items-center justify-center px-6 pb-24 opacity-60 gap-16 text-center">
           <div className="w-full flex flex-col md:flex-row justify-between items-center gap-8 text-zinc-800 max-w-5xl">
              <div className="flex items-center gap-2"><Shield size={14} /><p className="text-[8px] font-black uppercase tracking-[0.3em]">Encrypted System • AI Core Active</p></div>
@@ -336,7 +347,11 @@ const App = () => {
           </div>
           <div className="flex flex-col items-center group cursor-default">
              <div className="relative">
-                <motion.p transition={{ duration: 0.1 }} whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} className={`text-2xl md:text-3xl font-black tracking-[0.5em] uppercase leading-none text-zinc-900 transition-colors cursor-pointer select-none whitespace-nowrap not-italic`}>
+                <motion.p 
+                  transition={{ duration: 0.1 }} 
+                  whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} 
+                  className="text-2xl md:text-3xl font-black tracking-[0.5em] uppercase leading-none text-zinc-900 transition-colors cursor-pointer select-none whitespace-nowrap not-italic"
+                >
                     HUMAM TAIBEH
                 </motion.p>
                 <motion.div initial={{ scaleX: 0 }} whileHover={{ scaleX: 1 }} transition={{ duration: 0.2 }} className="absolute -bottom-4 left-0 w-full h-[1px] bg-red-600 origin-center" />
