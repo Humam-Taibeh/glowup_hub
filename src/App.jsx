@@ -18,9 +18,10 @@ import {
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 
 // ==========================================
-// SECTION 1: FORCE GLOBAL INITIALIZATION
+// SECTION 1: GLOBAL INITIALIZATION
 // ==========================================
-console.log("[SYSTEM] Initializing Firebase Engine...");
+console.log("[SYSTEM] Absolute Engine Handshake Initialized...");
+
 const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 const firebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(firebaseApp);
@@ -79,11 +80,6 @@ const TaskCard = forwardRef(({ tk, t, onUpdate, onDelete, s, onEdit }, ref) => {
         <div className="flex items-center gap-2">
            <span className="text-xl">{String(tk?.emoji || '✨')}</span>
            <h3 className={`text-sm md:text-base font-bold truncate ${tk?.status === 'done' ? 'line-through text-zinc-600' : 'text-zinc-100'}`}>{String(tk?.text || "")}</h3>
-           {tk?.deadline && tk?.status !== 'done' && (
-             <div className={`text-[8px] px-1.5 py-0.5 rounded-full font-black border-[0.5px] whitespace-nowrap ${isMissed ? 'bg-red-600/10 border-red-500/30 text-red-500 shadow-[0_0_10px_red]' : 'bg-blue-600/10 border-blue-500/30 text-blue-500'}`}>
-               {new Date(tk.deadline).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-             </div>
-           )}
         </div>
         <div className="flex items-center gap-2 mt-1">
            <p className="text-[9px] font-light text-zinc-500 uppercase tracking-widest flex items-center gap-1">
@@ -139,7 +135,7 @@ const App = () => {
     large: { text: 'text-base', welcome: 'text-7xl md:text-8xl', icon: 30, cardP: 'p-6' }
   }[profile?.uiScale || 'default'];
 
-  // AI Quote Logic
+  // AI Quote Engine
   useEffect(() => {
     const quotes = AI_QUOTES[isArabic ? 'ar' : 'en'];
     setAiAdvice(quotes[Math.floor(Math.random() * quotes.length)]);
@@ -149,9 +145,17 @@ const App = () => {
     return () => clearInterval(interval);
   }, [isArabic]);
 
-  // Auth Effect
+  // Auth Effect with Handshake Fail-safe
   useEffect(() => {
-    console.log("[AUTH] Starting check...");
+    console.log("[AUTH] Initiating Handshake...");
+    const bootTimeout = setTimeout(() => {
+      if (authChecking) {
+        console.warn("[AUTH] Boot timeout triggered. Forcing UI Ready.");
+        setAuthChecking(false);
+        setIsLoading(false);
+      }
+    }, 5000);
+
     const initAuth = async () => {
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -159,42 +163,51 @@ const App = () => {
         } else {
           await signInAnonymously(auth);
         }
-      } catch (e) { console.error("[AUTH] Error:", e); }
-      finally { setAuthChecking(false); console.log("[AUTH] Check complete."); }
+      } catch (e) {
+        console.error("[AUTH] Rejection:", e);
+      } finally {
+        setAuthChecking(false);
+        clearTimeout(bootTimeout);
+      }
     };
     initAuth();
+    
     const unsub = onAuthStateChanged(auth, (u) => { 
-      setUser(u); 
-      console.log("[AUTH] User State:", u ? u.uid : "None");
+      setUser(u);
+      if(u) console.log("[AUTH] User Identity Validated:", u.uid);
     });
-    const handleMouseMove = (e) => { mouseX.set(e.clientX); mouseY.set(e.clientY); };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => { unsub(); window.removeEventListener('mousemove', handleMouseMove); };
-  }, [mouseX, mouseY]);
 
-  // Sync Effect (Only run if user exists)
+    const handleMouseMove = (e) => {
+      mouseX.set(e.clientX);
+      mouseY.set(e.clientY);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => { unsub(); window.removeEventListener('mousemove', handleMouseMove); clearTimeout(bootTimeout); };
+  }, []);
+
+  // Sync Logic
   useEffect(() => {
     if (!user || authChecking) return;
-    console.log("[DATA] Syncing for user:", user.uid);
+    console.log("[DATA] Commencing Secure Sync...");
 
     const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core');
     const unsubP = onSnapshot(profileRef, (snap) => {
       if (snap.exists()) {
-        const data = snap.data();
-        setProfile(data);
-        console.log("[DATA] Profile Loaded:", data.name);
+        setProfile(snap.data());
+        console.log("[DATA] Profile Synced.");
       } else {
-        console.log("[DATA] Profile missing, setup required.");
-        setProfile({ name: "" });
+        setProfile({ name: "" }); // Trigger setup
       }
       setIsLoading(false);
-    }, (err) => { console.error("[DATA] Profile Sync Fail:", err); setIsLoading(false); });
+    }, (err) => {
+      console.error("[DATA] Sync Guard Error:", err);
+      setIsLoading(false);
+    });
 
     const tasksCol = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
     const unsubT = onSnapshot(tasksCol, (snap) => {
       setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      console.log("[DATA] Tasks Updated:", snap.docs.length);
-    }, (err) => { console.error("[DATA] Tasks Sync Fail:", err); });
+    });
 
     return () => { unsubP(); unsubT(); };
   }, [user, authChecking]);
@@ -214,7 +227,8 @@ const App = () => {
 
   const updateStatus = async (tk) => {
     if (!user || !tk) return;
-    const next = ['todo', 'doing', 'done', 'missed'][(['todo', 'doing', 'done', 'missed'].indexOf(tk.status) + 1) % 4];
+    const seq = ['todo', 'doing', 'done', 'missed'];
+    const next = seq[(seq.indexOf(tk.status) + 1) % 4];
     await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', tk.id), { status: next, completed: next === 'done' });
   };
 
@@ -226,14 +240,14 @@ const App = () => {
 
   const filteredTasks = tasks.filter(tk => (timeFilter === 'all' || tk.slot === timeFilter) && (statusFilter === 'all' || tk.status === statusFilter));
 
-  // --- RENDERING GUARDS (The Black Screen Fix) ---
-  if (authChecking || isLoading || !t) {
+  // --- RENDERING GUARDS ---
+  if ((authChecking || isLoading) && !profile) {
     return (
       <div className="h-screen bg-[#050505] flex flex-col items-center justify-center gap-6">
         <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
           <Loader2 className="text-red-600" size={48} />
         </motion.div>
-        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-800 animate-pulse text-center">INITIALIZING ABSOLUTE SYSTEM<br/>CHECKING AUTH & DATA...</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-800 animate-pulse text-center">INITIALIZING ABSOLUTE SYSTEM<br/>BYPASSING BLACK SCREEN...</p>
       </div>
     );
   }
@@ -242,10 +256,10 @@ const App = () => {
     return (
       <div className="min-h-screen bg-[#050000] flex items-center justify-center p-6 text-right font-sans" dir="rtl">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.05),transparent_75%)]"></div>
-        <div className="w-full max-w-md bg-white/[0.01] backdrop-blur-3xl border-[0.5px] border-white/10 rounded-[3rem] p-10 shadow-2xl glass-noise">
+        <div className="w-full max-w-md bg-white/[0.01] backdrop-blur-3xl border-[0.5px] border-white/10 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden glass-noise">
           <div className="text-center mb-10">
             <Rocket size={40} className="text-red-600 animate-bounce mx-auto" />
-            <h1 className="text-4xl font-black text-white italic mt-4 uppercase">GlowUp <span className="text-red-600 font-black">Omni</span></h1>
+            <h1 className="text-4xl font-black text-white italic mt-4 uppercase tracking-tighter">GlowUp <span className="text-red-600 font-black">Omni</span></h1>
           </div>
           <div className="space-y-6">
             <input autoFocus type="text" placeholder={String(t?.identity_placeholder || "Ur Name...")} className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 text-center text-2xl font-black text-white outline-none" onChange={(e)=>setTempName(e.target.value)} />
@@ -268,32 +282,32 @@ const App = () => {
           <div className="flex-1 w-full">
             <motion.h1 initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className={`${s?.welcome || 'text-6xl'} font-black italic tracking-tighter leading-none`}>
               {String(t?.welcome?.replace('{name}', '') || "Hi")} 
-              <span className="text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,0.4)] uppercase"> {String(profile?.name)}</span>
+              <span className="text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,0.4)] uppercase font-black"> {String(profile?.name || "User")}</span>
             </motion.h1>
             <div className={`flex items-center gap-4 mt-4 h-8 overflow-hidden`}>
               <AnimatePresence mode='wait'>
-                <motion.p key={aiAdvice} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.3 }} className="font-light text-zinc-500 italic max-w-2xl truncate text-base">"{String(aiAdvice)}"</motion.p>
+                <motion.p key={aiAdvice} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.3 }} className="font-light text-zinc-500 italic max-w-2xl truncate text-base">"{String(aiAdvice || "Locked in.")}"</motion.p>
               </AnimatePresence>
             </div>
           </div>
-          <div className="flex items-center gap-4 bg-white/[0.01] p-3 md:p-4 rounded-[3rem] border-[0.5px] border-white/10 backdrop-blur-3xl shadow-2xl">
+          <motion.div initial={{ scale: 0.95 }} animate={{ scale: [0.95, 1.05, 0.95] }} transition={{ repeat: Infinity, duration: 4 }} className="flex items-center gap-4 bg-white/[0.01] p-3 md:p-4 rounded-[3rem] border-[0.5px] border-white/10 backdrop-blur-3xl shadow-2xl">
              <div className="flex items-center gap-3 px-8 border-l border-white/5">
                 <Flame size={24} className={profile?.streak > 0 ? "text-orange-500" : "text-zinc-800"} />
                 <span className="text-5xl font-black tracking-tighter">{profile?.streak || 0}</span>
              </div>
              <button onClick={()=>setShowSettings(true)} className="p-4 hover:bg-white/5 rounded-2xl text-zinc-600 hover:text-red-600 transition-all active:scale-90"><Settings2 size={24} /></button>
-          </div>
+          </motion.div>
         </header>
 
         <div className="flex flex-col md:flex-row gap-6 max-w-5xl mx-auto">
-           <div className="flex-1 bg-white/[0.02] p-4 rounded-[3rem] border-[0.5px] border-white/10 shadow-2xl backdrop-blur-3xl focus-within:ring-1 ring-red-600/10 transition-all">
+           <div className="flex-1 bg-white/[0.02] p-4 rounded-[3rem] border-[0.5px] border-white/10 shadow-2xl backdrop-blur-3xl focus-within:ring-1 ring-red-600/10 transition-all glass-noise">
               <div className="flex items-center gap-4 px-4">
                  <Plus size={24} className="text-zinc-800" />
                  <input value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && handleAddTask()} placeholder={String(t?.add_task)} className="bg-transparent flex-1 text-lg font-bold text-white outline-none py-4" />
                  <div className="flex gap-2 bg-black/40 rounded-2xl p-1">
                     {['morning', 'day', 'night'].map(sl => (<button key={sl} onClick={()=>setNewTaskSlot(sl)} className={`p-3 rounded-xl transition-all ${newTaskSlot === sl ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700'}`}>{sl === 'morning' ? <Sun size={14}/> : sl === 'night' ? <Moon size={14}/> : <CloudSun size={14}/>}</button>))}
                  </div>
-                 <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAddTask} className="bg-red-600 p-4 rounded-[1.8rem] hover:bg-red-500 transition-all text-white"><ArrowRightCircle size={28}/></motion.button>
+                 <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAddTask} className="bg-red-600 p-4 rounded-[1.8rem] hover:bg-red-500 shadow-xl transition-all text-white"><ArrowRightCircle size={28}/></motion.button>
               </div>
            </div>
         </div>
@@ -303,16 +317,6 @@ const App = () => {
            {filteredTasks.length === 0 ? (<motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 0.1 }} className="col-span-full py-40 text-center border-2 border-dashed border-white/5 rounded-[4rem] flex flex-col items-center gap-6"><ZapOff size={80} className="text-zinc-800" /><p className="text-2xl font-black italic tracking-widest uppercase text-zinc-800">Clear</p></motion.div>) : filteredTasks.map((tk) => (<TaskCard key={tk.id} tk={tk} t={t} s={s} onUpdate={updateStatus} onDelete={(id) => deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id))} onEdit={(task) => setEditingTask(task)} />))}
            </AnimatePresence>
         </div>
-
-        <AnimatePresence>
-        {showWater && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-6"><motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black backdrop-blur-xl" onClick={()=>setShowWater(false)} /><motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} className="relative bg-zinc-950/98 border-[0.5px] border-white/20 p-8 rounded-[4rem] shadow-2xl w-80 glass-noise">
-              <div className="flex justify-between items-center mb-8 relative z-10 px-2 text-right" dir="rtl"><h4 className="font-black text-xl italic uppercase tracking-tighter text-blue-500">Hydration</h4><button onClick={()=>setShowWater(false)}><X size={20} className="text-zinc-600" /></button></div>
-              <div className="h-56 w-full bg-black/60 rounded-[2.5rem] relative overflow-hidden mb-8 border-[0.5px] border-white/10 shadow-inner"><motion.div animate={{ y: [0, -3, 0], x: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 15, ease: "easeInOut" }} className="absolute bottom-0 left-[-10%] w-[120%] bg-blue-600/25" style={{ height: `${Math.min(100, ((profile?.waterLevel || 0) / 4000) * 100)}%` }} /><div className="absolute inset-0 flex items-center justify-center font-black text-6xl tracking-tighter opacity-70 z-10">{Math.round(((profile?.waterLevel || 0) / 4000) * 100)}%</div></div>
-              <div className="flex items-center gap-2 mb-6 text-right" dir="rtl">{[100, 250, 600].map(v => (<button key={v} onClick={()=>addWater(v)} className="flex-1 bg-white/5 hover:bg-blue-600/10 py-4 rounded-2xl font-black text-[10px] transition-all border border-white/10">{v}ml</button>))}</div>
-              <div className="flex gap-2"><input type="number" value={customWater} onChange={(e)=>setCustomWater(e.target.value)} placeholder={String(t?.water.custom)} className="flex-1 bg-black/60 border border-white/10 rounded-2xl p-4 text-xs font-black text-white outline-none" /><button onClick={()=>addWater(customWater)} className="bg-blue-600 p-4 rounded-2xl shadow-lg transition-transform"><Plus size={20}/></button></div></motion.div></div>
-        )}
-        </AnimatePresence>
 
         <AnimatePresence>
         {showSettings && (
@@ -325,13 +329,13 @@ const App = () => {
                   <div className="space-y-12">
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4"><IDIcon size={20} className="text-red-600" /><label className="text-[10px] font-black uppercase tracking-[0.5em] block italic">Profile Settings</label></div>
-                      <div className="bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-4 flex items-center gap-4 group focus-within:border-red-600/40 transition-all"><UserIcon size={18} className="text-zinc-700" /><input type="text" value={profile?.name || ""} onChange={(e) => handleUpdateName(e.target.value)} placeholder="Your Name..." className="bg-transparent flex-1 text-zinc-100 font-bold outline-none placeholder:text-zinc-800" /></div>
+                      <div className="bg-black/40 border-[0.5px] border-white/10 rounded-2xl p-4 flex items-center gap-4 group focus-within:border-red-600/40 transition-all"><UserIcon size={18} className="text-zinc-700" /><input type="text" value={profile?.name || ""} onChange={(e) => handleUpdateName(e.target.value)} placeholder="Your Name..." className="bg-transparent flex-1 text-zinc-100 font-bold outline-none" /></div>
                     </div>
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 text-zinc-500 border-b border-white/5 pb-4"><LanguagesIcon size={20} className="text-red-600" /><label className="text-[10px] font-black uppercase tracking-[0.5em] block italic">System Tone</label></div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{SYSTEM_LANGS.map(lang => (<button key={lang.id} onClick={async () => { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'core'), { lang: lang.id }); }} className={`p-8 rounded-[2rem] font-black text-xs transition-all border-[0.5px] flex items-center justify-between px-10 ${currentLang === lang.id ? 'border-red-600 text-white bg-red-600/5' : 'border-white/5 text-zinc-700 bg-white/[0.01]'}`}><span>{String(lang.label)}</span>{currentLang === lang.id && <CheckCircle2 size={20} className="text-red-500" />}</button>))}</div>
                     </div>
-                    <button onClick={async ()=>{ await signOut(auth); window.location.reload(); }} className="w-full py-8 bg-zinc-950 border-[0.5px] border-red-600/20 text-red-500 rounded-3xl font-black uppercase tracking-[0.5em] shadow-xl hover:bg-red-600 hover:text-white transition-all active:scale-95 leading-none">End Session</button>
+                    <button onClick={async ()=>{ await signOut(auth); window.location.reload(); }} className="w-full py-8 bg-zinc-950 border-[0.5px] border-red-600/20 text-red-500 rounded-3xl font-black uppercase tracking-[0.5em] shadow-xl hover:bg-red-600 hover:text-white transition-all leading-none">End Session</button>
                   </div>
                </div>
             </motion.div>
@@ -346,7 +350,7 @@ const App = () => {
           </div>
           <div className="flex flex-col items-center group cursor-default">
              <div className="relative">
-                <motion.p transition={{ duration: 0.1 }} whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} className={`text-2xl md:text-3xl font-black tracking-[0.5em] uppercase leading-none text-zinc-900 transition-colors select-none whitespace-nowrap not-italic`}>HUMAM TAIBEH</motion.p>
+                <motion.p transition={{ duration: 0.1 }} whileHover={{ color: "#ef4444", textShadow: "0 0 35px rgba(239,68,68,1)" }} className={`text-2xl md:text-3xl font-black tracking-[0.5em] uppercase leading-none text-zinc-900 transition-colors cursor-pointer select-none whitespace-nowrap not-italic`}>HUMAM TAIBEH</motion.p>
                 <motion.div initial={{ scaleX: 0 }} whileHover={{ scaleX: 1 }} transition={{ duration: 0.2 }} className="absolute -bottom-4 left-0 w-full h-[1px] bg-red-600 origin-center" />
              </div>
              <p className="text-[7px] font-black text-zinc-900 uppercase tracking-[1.2em] mt-10 opacity-40 uppercase">Sovereign Productivity Engine • © 2026</p>
